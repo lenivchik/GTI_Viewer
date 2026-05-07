@@ -9,6 +9,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using FirebirdViewer.Commands;
+using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
 using Microsoft.Win32;
@@ -99,8 +100,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public string WindowTitle => SelectedTable is null
-        ? "Firebird — Просмотр данных"
-        : $"Просмотр данных: «{SelectedTable.Name}»";
+        ? "Просмотр данных ГТИ"
+        : $"Просмотр данных: «{SelectedTable.DisplayName}»";
 
     // ============================================================
     // Column visibility list (drives the left checkbox panel)
@@ -288,11 +289,15 @@ public sealed class MainViewModel : ObservableObject
         var t = await _db.GetTablesAsync().ConfigureAwait(true);
         var v = await _db.GetViewsAsync().ConfigureAwait(true);
 
-        AllTables.Clear();
-        foreach (var x in t) AllTables.Add(x);
-        foreach (var x in v) AllTables.Add(x);
+        // Show tables that have a friendly Russian label first; unknowns fall to the bottom.
+        var ordered = t.Concat(v)
+            .OrderBy(x => FriendlyNames.GetTable(x.Name) is null)
+            .ThenBy(x => x.DisplayName, StringComparer.CurrentCulture);
 
-        StatusText = $"Загружено: {t.Count} таблиц, {v.Count} представлений";
+        AllTables.Clear();
+        foreach (var x in ordered) AllTables.Add(x);
+
+        StatusText = $"Загружено: {t.Count + v.Count} источников данных";
     }
 
     private async Task LoadSelectedTableAsync()
@@ -318,7 +323,7 @@ public sealed class MainViewModel : ObservableObject
 
             RebuildColumnVisibility(dt);
             CurrentTableData = dt.DefaultView;
-            RowCountText = $"{dt.Rows.Count} строк за {sw.ElapsedMilliseconds} мс (лимит {RowLimit})";
+            RowCountText = $"Записей: {dt.Rows.Count} (показано не более {RowLimit})";
         }
         catch (Exception ex)
         {
@@ -364,12 +369,15 @@ public sealed class MainViewModel : ObservableObject
         // Preserve user's current visibility on refresh of the same table.
         var prior = Columns.ToDictionary(c => c.Name, c => c.IsVisible);
         Columns.Clear();
+        var tableName = SelectedTable?.Name;
         foreach (DataColumn dc in dt.Columns)
         {
             Columns.Add(new ColumnVisibility
             {
-                Name = dc.ColumnName,
-                IsVisible = prior.TryGetValue(dc.ColumnName, out var v) ? v : true
+                Name        = dc.ColumnName,
+                DisplayName = FriendlyNames.GetColumnDisplay(tableName, dc.ColumnName),
+                Description = FriendlyNames.GetColumnDescription(tableName, dc.ColumnName),
+                IsVisible   = prior.TryGetValue(dc.ColumnName, out var v) ? v : true
             });
         }
         OnPropertyChanged(nameof(AllColumnsVisible));
@@ -419,10 +427,10 @@ public sealed class MainViewModel : ObservableObject
     // CSV export
     // ============================================================
 
-    private void ExportDataToCsv()  => ExportToCsv(CurrentTableData, SelectedTable?.Name ?? "data");
-    private void ExportQueryToCsv() => ExportToCsv(QueryResultData, "query_result");
+    private void ExportDataToCsv()  => ExportToCsv(CurrentTableData, SelectedTable?.Name, SelectedTable?.DisplayName ?? "data");
+    private void ExportQueryToCsv() => ExportToCsv(QueryResultData, null, "Результат запроса");
 
-    private static void ExportToCsv(DataView? view, string suggestedName)
+    private static void ExportToCsv(DataView? view, string? tableName, string suggestedName)
     {
         if (view is null) return;
         var dlg = new SaveFileDialog
@@ -437,7 +445,8 @@ public sealed class MainViewModel : ObservableObject
             var dt = view.Table!;
             var sb = new StringBuilder();
             sb.AppendLine(string.Join(",",
-                dt.Columns.Cast<DataColumn>().Select(c => CsvField(c.ColumnName))));
+                dt.Columns.Cast<DataColumn>()
+                  .Select(c => CsvField(FriendlyNames.GetColumnDisplay(tableName, c.ColumnName)))));
             foreach (DataRowView rv in view)
             {
                 sb.AppendLine(string.Join(",",

@@ -12,7 +12,7 @@
         WindowStartupLocation="CenterScreen">
 
     <Window.InputBindings>
-        <KeyBinding Key="F5"                      Command="{Binding ExecuteQueryCommand}"/>
+        <KeyBinding Key="F5"                      Command="{Binding RefreshCommand}"/>
         <KeyBinding Key="F5" Modifiers="Control"  Command="{Binding RefreshCommand}"/>
     </Window.InputBindings>
 
@@ -21,8 +21,8 @@
         <!-- ===================== Top menu ===================== -->
         <Menu DockPanel.Dock="Top" Background="{StaticResource PanelBackground}">
             <MenuItem Header="_Файл">
-                <MenuItem Header="_Подключиться..."  Click="ConnectMenu_Click"/>
-                <MenuItem Header="_Отключиться"      Command="{Binding DisconnectCommand}"/>
+                <MenuItem Header="_Подключиться к базе..."  Click="ConnectMenu_Click"/>
+                <MenuItem Header="_Отключиться"             Command="{Binding DisconnectCommand}"/>
                 <Separator/>
                 <MenuItem Header="_Недавние подключения" ItemsSource="{Binding RecentConnections}">
                     <MenuItem.ItemContainerStyle>
@@ -35,26 +35,23 @@
                 </MenuItem>
                 <MenuItem Header="_Очистить список"  Command="{Binding ClearRecentCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Экспорт данных в CSV..."     Command="{Binding ExportDataCommand}"/>
-                <MenuItem Header="Экс_порт SQL-результата..."   Command="{Binding ExportQueryCommand}"/>
+                <MenuItem Header="_Сохранить таблицу в CSV..."  Command="{Binding ExportDataCommand}"/>
                 <Separator/>
                 <MenuItem Header="В_ыход" Click="ExitMenu_Click"/>
             </MenuItem>
 
             <MenuItem Header="_Правка">
-                <MenuItem Header="_Копировать" Command="ApplicationCommands.Copy"/>
+                <MenuItem Header="_Копировать выделенное" Command="ApplicationCommands.Copy"/>
             </MenuItem>
 
-            <MenuItem Header="_Колонки">
-                <MenuItem Header="Показать _все"   Command="{Binding ShowAllColumnsCommand}"/>
-                <MenuItem Header="С_крыть все"     Command="{Binding HideAllColumnsCommand}"/>
+            <MenuItem Header="_Показать">
+                <MenuItem Header="Показать _все колонки"   Command="{Binding ShowAllColumnsCommand}"/>
+                <MenuItem Header="С_крыть все колонки"     Command="{Binding HideAllColumnsCommand}"/>
                 <Separator/>
-                <MenuItem Header="Переместить в_верх"   Command="{Binding MoveColumnUpCommand}"/>
-                <MenuItem Header="Переместить в_низ"    Command="{Binding MoveColumnDownCommand}"/>
-            </MenuItem>
-
-            <MenuItem Header="_Настройка">
-                <MenuItem Header="_Обновить"  Command="{Binding RefreshCommand}" InputGestureText="Ctrl+F5"/>
+                <MenuItem Header="Переместить колонку в_верх"   Command="{Binding MoveColumnUpCommand}"/>
+                <MenuItem Header="Переместить колонку в_низ"    Command="{Binding MoveColumnDownCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Обновить данные"  Command="{Binding RefreshCommand}" InputGestureText="F5"/>
             </MenuItem>
 
             <MenuItem Header="_Справка">
@@ -88,18 +85,25 @@
             <DockPanel>
                 <!-- Right: row limit -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Лимит строк:" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBox Text="{Binding RowLimit, UpdateSourceTrigger=LostFocus}" Width="70"/>
+                    <TextBlock Text="Показывать записей:" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding RowLimit, UpdateSourceTrigger=LostFocus}" Width="70"
+                             ToolTip="Максимальное число строк, загружаемых из базы"/>
                     <Button Content="Обновить" Margin="8,0,0,0" Command="{Binding RefreshCommand}"/>
                 </StackPanel>
                 <!-- Left: table chooser -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Объект:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox Width="280"
+                    <TextBlock Text="Данные:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox Width="320"
                               ItemsSource="{Binding AllTables}"
                               SelectedItem="{Binding SelectedTable, Mode=TwoWay}"
-                              DisplayMemberPath="Name"
-                              IsEnabled="{Binding IsConnected}"/>
+                              IsEnabled="{Binding IsConnected}"
+                              ToolTip="Источник данных, который вы хотите просмотреть">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Description}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -112,10 +116,10 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ============== Left: "Выбор столбцов" panel ============== -->
+            <!-- ============== Left: "Показывать колонки" panel ============== -->
             <DockPanel Grid.Column="0" Background="White">
                 <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
-                    <TextBlock Text="Выбор столбцов" Style="{StaticResource SectionHeaderText}"/>
+                    <TextBlock Text="Показывать колонки" Style="{StaticResource SectionHeaderText}"/>
                 </Border>
 
                 <!-- Bottom: Up/Down/All controls -->
@@ -123,11 +127,14 @@
                         BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
                         Background="{StaticResource PanelBackground}">
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Вверх" Command="{Binding MoveColumnUpCommand}"   Width="60" Margin="0,0,4,0"/>
-                        <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"/>
+                        <Button Content="Вверх" Command="{Binding MoveColumnUpCommand}"   Width="60" Margin="0,0,4,0"
+                                ToolTip="Переместить выбранную колонку вверх"/>
+                        <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"
+                                ToolTip="Переместить выбранную колонку вниз"/>
                         <CheckBox Content="Все" IsThreeState="True"
                                   IsChecked="{Binding AllColumnsVisible, Mode=TwoWay}"
-                                  VerticalAlignment="Center"/>
+                                  VerticalAlignment="Center"
+                                  ToolTip="Показать или скрыть сразу все колонки"/>
                     </StackPanel>
                 </Border>
 
@@ -140,12 +147,14 @@
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Padding" Value="2"/>
                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="ToolTip" Value="{Binding Description}"/>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type m:ColumnVisibility}">
                             <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                      Content="{Binding Name}"
+                                      Content="{Binding DisplayName}"
+                                      ToolTip="{Binding Description}"
                                       VerticalContentAlignment="Center"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -154,7 +163,8 @@
 
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#DDDDDD"/>
 
-            <!-- ============== Right: tabs (Графики / Таблица / Схема / SQL) ============== -->
+            <!-- ============== Right: tabs (Графики / Таблица) ============== -->
+            <!-- "Схема" and "SQL" tabs are hidden — they require database/SQL knowledge. -->
             <TabControl Grid.Column="2" Margin="6" SelectedIndex="1">
 
                 <!-- ===== Графики ===== -->
@@ -167,9 +177,9 @@
                                        HorizontalAlignment="Center" Margin="0,0,0,12"/>
                             <TextBlock TextWrapping="Wrap" TextAlignment="Center"
                                        Foreground="{StaticResource MutedForeground}">
-                                Здесь могут отображаться графики числовых столбцов выбранной таблицы.
-                                Подключите построение диаграмм в коде &#x2014;
-                                см. <Run FontFamily="Consolas">Views/MainWindow.xaml.cs</Run>.
+                                Здесь будут отображаться графики выбранных параметров.
+                                Для просмотра графиков в реальном времени откройте программу
+                                <Run FontWeight="SemiBold">GtiRealtimeCharts</Run>.
                             </TextBlock>
                         </StackPanel>
                     </Grid>
@@ -180,11 +190,18 @@
                     <DataGrid x:Name="DataGrid"
                               ItemsSource="{Binding CurrentTableData}"
                               AutoGeneratingColumn="DataGrid_AutoGeneratingColumn"
-                              SelectedCellsChanged="DataGrid_SelectedCellsChanged"/>
+                              SelectedCellsChanged="DataGrid_SelectedCellsChanged"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="True"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F7F9FB"/>
                 </TabItem>
 
-                <!-- ===== Схема ===== -->
-                <TabItem Header="Схема">
+                <!-- ===== Схема (скрыто — техническая информация) ===== -->
+                <TabItem Header="Схема" Visibility="Collapsed">
                     <TabControl>
                         <TabItem Header="Колонки">
                             <DataGrid ItemsSource="{Binding ColumnsData}"/>
@@ -195,8 +212,8 @@
                     </TabControl>
                 </TabItem>
 
-                <!-- ===== SQL ===== -->
-                <TabItem Header="SQL">
+                <!-- ===== SQL (скрыто — для разработчиков) ===== -->
+                <TabItem Header="SQL" Visibility="Collapsed">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="160"/>

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
 using FirebirdViewer.ViewModels;
@@ -50,8 +51,9 @@ public partial class MainWindow : Window
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
         MessageBox.Show(this,
-            $"Firebird — Просмотр данных\nВерсия {version}\n\n" +
-            "WPF .NET 8 клиент на основе FirebirdSql.Data.FirebirdClient.",
+            $"Просмотр данных ГТИ\nВерсия {version}\n\n" +
+            "Программа для удобного просмотра данных ГТИ из базы Firebird.\n" +
+            "Названия параметров взяты из системы GtiRealtimeCharts.",
             "О программе",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
@@ -63,10 +65,19 @@ public partial class MainWindow : Window
 
     private void DataGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
     {
-        var match = _vm.Columns.FirstOrDefault(c => c.Name == e.PropertyName);
+        var col = e.Column;
+        var rawName = e.PropertyName;
+        var tableName = _vm.SelectedTable?.Name;
+
+        // Replace the raw identifier in the column header with a friendly Russian label.
+        // Keep the original DB column name on Tag so we can look it back up when the user
+        // selects a cell or when reorder events come in.
+        col.Header = FriendlyNames.GetColumnDisplay(tableName, rawName);
+        col.Tag    = rawName;
+
+        var match = _vm.Columns.FirstOrDefault(c => c.Name == rawName);
         if (match is null) return;  // unknown column — leave visible by default
 
-        var col = e.Column;
         col.Visibility = match.IsVisible ? Visibility.Visible : Visibility.Collapsed;
 
         // Live-toggle visibility when the user checks/unchecks the box.
@@ -81,15 +92,14 @@ public partial class MainWindow : Window
     private void SyncColumnOrder()
     {
         if (DataGrid.Columns.Count == 0) return;
-        // Build a map of Name → desired display index
+        // Use the raw DB column name (stashed on Tag) as the key so duplicate friendly labels don't collide.
         var desired = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < _vm.Columns.Count; i++)
             desired[_vm.Columns[i].Name] = i;
 
         foreach (var col in DataGrid.Columns)
         {
-            var name = col.Header?.ToString();
-            if (name is not null && desired.TryGetValue(name, out var idx))
+            if (col.Tag is string raw && desired.TryGetValue(raw, out var idx))
                 col.DisplayIndex = idx;
         }
     }
@@ -108,18 +118,22 @@ public partial class MainWindow : Window
         }
 
         var rowIndex = grid.Items.IndexOf(grid.CurrentCell.Item) + 1;
-        var colName  = grid.CurrentCell.Column.Header?.ToString() ?? "";
-        var value    = "";
+        var headerText = grid.CurrentCell.Column.Header?.ToString() ?? "";
+
+        // The header shows the friendly name; the raw DB column name is stashed on Tag.
+        var rawColumnName = grid.CurrentCell.Column.Tag as string ?? headerText;
+
+        var value = "";
         try
         {
-            if (grid.CurrentCell.Item is System.Data.DataRowView drv && drv.Row.Table.Columns.Contains(colName))
-                value = drv[colName]?.ToString() ?? "";
+            if (grid.CurrentCell.Item is System.Data.DataRowView drv && drv.Row.Table.Columns.Contains(rawColumnName))
+                value = drv[rawColumnName]?.ToString() ?? "";
         }
         catch (Exception)
         {
             // Defensive — DataRowView indexers can throw on detached rows; ignore.
         }
 
-        _vm.CursorText = $"Курсор: строка {rowIndex} · [{colName}] = {value}";
+        _vm.CursorText = $"Запись {rowIndex} · {headerText}: {value}";
     }
 }
