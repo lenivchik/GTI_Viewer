@@ -1,0 +1,65 @@
+# ---- Visual Studio ----
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Pp]ublish/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Oo]ut/
+
+# ---- Build artifacts ----
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+*.tlog
+*.tlb
+*.tli
+*.tlh
+
+# ---- NuGet ----
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# ---- ReSharper / Rider ----
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+.idea/
+
+# ---- Test results ----
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+
+# ---- Application output ----
+*.appx
+*.appxbundle
+*.appxupload
+
+# ---- Local user settings ----
+appsettings.Development.json
+
+# ---- OS ----
+Thumbs.db
+.DS_Store
+
+# ---- Application data created at runtime ----
+# (Settings live in %APPDATA%\FirebirdViewer, not here)

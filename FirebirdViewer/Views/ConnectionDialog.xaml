@@ -1,0 +1,65 @@
+<Window x:Class="FirebirdViewer.Views.ConnectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Подключение к базе данных"
+        Height="360" Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="140"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Сервер:" Margin="0,8" VerticalAlignment="Center"/>
+        <TextBox   Grid.Row="0" Grid.Column="1" Margin="0,4"
+                   Text="{Binding Server, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Порт:" Margin="0,8" VerticalAlignment="Center"/>
+        <TextBox   Grid.Row="1" Grid.Column="1" Margin="0,4" Width="80" HorizontalAlignment="Left"
+                   Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Путь к базе данных:" Margin="0,8" VerticalAlignment="Center"/>
+        <TextBox   Grid.Row="2" Grid.Column="1" Margin="0,4"
+                   Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Путь к .FDB файлу или алиас, видимый сервером Firebird"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Пользователь:" Margin="0,8" VerticalAlignment="Center"/>
+        <TextBox   Grid.Row="3" Grid.Column="1" Margin="0,4" Width="200" HorizontalAlignment="Left"
+                   Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Пароль:" Margin="0,8" VerticalAlignment="Center"/>
+        <PasswordBox x:Name="PasswordBox" Grid.Row="4" Grid.Column="1" Margin="0,4"
+                     Width="200" HorizontalAlignment="Left"
+                     PasswordChanged="PasswordBox_PasswordChanged"/>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Кодировка:" Margin="0,8" VerticalAlignment="Center"/>
+        <ComboBox  Grid.Row="5" Grid.Column="1" Margin="0,4" Width="140" HorizontalAlignment="Left"
+                   IsEditable="True"
+                   Text="{Binding Charset, UpdateSourceTrigger=PropertyChanged}">
+            <ComboBoxItem Content="UTF8"/>
+            <ComboBoxItem Content="WIN1251"/>
+            <ComboBoxItem Content="ISO8859_1"/>
+            <ComboBoxItem Content="NONE"/>
+        </ComboBox>
+
+        <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Подключиться" Click="OK_Click" IsDefault="True"
+                    Width="120" Margin="0,0,8,0"/>
+            <Button Content="Отмена" Click="Cancel_Click" IsCancel="True" Width="100"/>
+        </StackPanel>
+    </Grid>
+</Window>
