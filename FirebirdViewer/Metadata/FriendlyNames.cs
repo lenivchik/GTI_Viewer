@@ -38,7 +38,17 @@ public static class FriendlyNames
             return info;
         }
 
-        return Common.TryGetValue(col, out var common) ? common : null;
+        if (Common.TryGetValue(col, out var common)) return common;
+
+        // Fallback: when no table context is given (e.g. joined views), look across
+        // every per-table dictionary so REC_COMMON / REC_LAG columns still resolve.
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            foreach (var dict in Columns.Values)
+                if (dict.TryGetValue(col, out var any)) return any;
+        }
+
+        return null;
     }
 
     public static string GetColumnDisplay(string? tableName, string? columnName)
@@ -257,6 +267,19 @@ public static class FriendlyNames
             ["PARAM_UNIT"]  = new("Единица измерения", "", "Единица измерения."),
             ["TABLE_NAME"]  = new("Таблица-источник",  "", "Таблица, в которой хранится значение."),
             ["TABLE_FIELD"] = new("Поле-источник",     "", "Поле в таблице-источнике."),
+        },
+
+        // Synthetic schema for the Операции tab. The query in FirebirdService aliases
+        // its result columns to these names so they get nice Russian headers.
+        ["OPERATIONS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ["OP_NUMBER"]         = new("№",                 "",    "Внутренний номер записи операции."),
+            ["OPER_NAME"]         = new("Операция",          "",    "Название операции (из справочника OPER_TYPES)."),
+            ["USER_OPER_NAME"]    = new("Подоперация",       "",    "Уточняющая операция (если задана)."),
+            ["OP_START"]          = new("Начало",            "",    "Время начала операции."),
+            ["OP_STOP"]           = new("Окончание",         "",    "Время окончания операции."),
+            ["OP_DURATION_HOURS"] = new("Длительность",      "час", "Длительность операции в часах."),
+            ["OP_COMMENT"]        = new("Комментарий",       "",    "Комментарий к операции."),
         },
     };
 }

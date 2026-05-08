@@ -60,23 +60,20 @@ public partial class MainWindow : Window
     }
 
     // ============================================================
-    // Column visibility — bind DataGrid columns to the VM model
+    // Drilling-data DataGrid (Таблица tab)
     // ============================================================
 
     private void DataGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
     {
         var col = e.Column;
         var rawName = e.PropertyName;
-        var tableName = _vm.SelectedTable?.Name;
 
-        // Replace the raw identifier in the column header with a friendly Russian label.
-        // Keep the original DB column name on Tag so we can look it back up when the user
-        // selects a cell or when reorder events come in.
-        col.Header = FriendlyNames.GetColumnDisplay(tableName, rawName);
+        // Use the friendly name resolved by the ViewModel (which handles cross-table lookup).
+        var match = _vm.Columns.FirstOrDefault(c => c.Name == rawName);
+        col.Header = match?.DisplayName ?? FriendlyNames.GetColumnDisplay(null, rawName);
         col.Tag    = rawName;
 
-        var match = _vm.Columns.FirstOrDefault(c => c.Name == rawName);
-        if (match is null) return;  // unknown column — leave visible by default
+        if (match is null) return;
 
         col.Visibility = match.IsVisible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -92,7 +89,6 @@ public partial class MainWindow : Window
     private void SyncColumnOrder()
     {
         if (DataGrid.Columns.Count == 0) return;
-        // Use the raw DB column name (stashed on Tag) as the key so duplicate friendly labels don't collide.
         var desired = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < _vm.Columns.Count; i++)
             desired[_vm.Columns[i].Name] = i;
@@ -103,10 +99,6 @@ public partial class MainWindow : Window
                 col.DisplayIndex = idx;
         }
     }
-
-    // ============================================================
-    // Cursor — show selected cell info in the status bar
-    // ============================================================
 
     private void DataGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
     {
@@ -119,8 +111,6 @@ public partial class MainWindow : Window
 
         var rowIndex = grid.Items.IndexOf(grid.CurrentCell.Item) + 1;
         var headerText = grid.CurrentCell.Column.Header?.ToString() ?? "";
-
-        // The header shows the friendly name; the raw DB column name is stashed on Tag.
         var rawColumnName = grid.CurrentCell.Column.Tag as string ?? headerText;
 
         var value = "";
@@ -135,5 +125,16 @@ public partial class MainWindow : Window
         }
 
         _vm.CursorText = $"Запись {rowIndex} · {headerText}: {value}";
+    }
+
+    // ============================================================
+    // Operations DataGrid (Операции tab)
+    // ============================================================
+
+    private void OperationsGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
+    {
+        // The OPERATIONS_VIEW context maps the aliased columns produced by GetOperationsAsync.
+        e.Column.Header = FriendlyNames.GetColumnDisplay("OPERATIONS_VIEW", e.PropertyName);
+        e.Column.Tag    = e.PropertyName;
     }
 }

@@ -35,7 +35,8 @@
                 </MenuItem>
                 <MenuItem Header="_Очистить список"  Command="{Binding ClearRecentCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Сохранить таблицу в CSV..."  Command="{Binding ExportDataCommand}"/>
+                <MenuItem Header="_Сохранить таблицу в CSV..."     Command="{Binding ExportDataCommand}"/>
+                <MenuItem Header="Сохранить _операции в CSV..."    Command="{Binding ExportOperationsCommand}"/>
                 <Separator/>
                 <MenuItem Header="В_ыход" Click="ExitMenu_Click"/>
             </MenuItem>
@@ -45,11 +46,10 @@
             </MenuItem>
 
             <MenuItem Header="_Показать">
-                <MenuItem Header="Показать _все колонки"   Command="{Binding ShowAllColumnsCommand}"/>
-                <MenuItem Header="С_крыть все колонки"     Command="{Binding HideAllColumnsCommand}"/>
+                <MenuItem Header="Показать _все колонки"       Command="{Binding ToggleAllColumnsCommand}"/>
                 <Separator/>
-                <MenuItem Header="Переместить колонку в_верх"   Command="{Binding MoveColumnUpCommand}"/>
-                <MenuItem Header="Переместить колонку в_низ"    Command="{Binding MoveColumnDownCommand}"/>
+                <MenuItem Header="Переместить колонку в_верх"  Command="{Binding MoveColumnUpCommand}"/>
+                <MenuItem Header="Переместить колонку в_низ"   Command="{Binding MoveColumnDownCommand}"/>
                 <Separator/>
                 <MenuItem Header="_Обновить данные"  Command="{Binding RefreshCommand}" InputGestureText="F5"/>
             </MenuItem>
@@ -73,34 +73,50 @@
             <Separator/>
             <StatusBarItem><TextBlock Text="{Binding RowCountText}"/></StatusBarItem>
             <Separator/>
+            <StatusBarItem><TextBlock Text="{Binding OperationsCountText}"/></StatusBarItem>
+            <Separator/>
             <StatusBarItem><TextBlock Text="{Binding CursorText}" Foreground="{StaticResource MutedForeground}"/></StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock Text="{Binding ConnectionInfoText}" Foreground="{StaticResource MutedForeground}" Margin="0,0,8,0"/>
             </StatusBarItem>
         </StatusBar>
 
-        <!-- ===================== Top bar: tabs + table picker ===================== -->
+        <!-- ===================== Top bar: well + race pickers ===================== -->
         <Border DockPanel.Dock="Top" Background="{StaticResource PanelBackground}"
                 BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1" Padding="6">
             <DockPanel>
-                <!-- Right: row limit -->
+                <!-- Right: row limit + refresh -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Показывать записей:" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding RowLimit, UpdateSourceTrigger=LostFocus}" Width="70"
                              ToolTip="Максимальное число строк, загружаемых из базы"/>
-                    <Button Content="Обновить" Margin="8,0,0,0" Command="{Binding RefreshCommand}"/>
+                    <Button Content="Обновить" Margin="8,0,0,0" Command="{Binding RefreshCommand}"
+                            ToolTip="Перечитать данные текущей скважины и рейса (F5)"/>
                 </StackPanel>
-                <!-- Left: table chooser -->
+                <!-- Left: well + race pickers -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Данные:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox Width="320"
-                              ItemsSource="{Binding AllTables}"
-                              SelectedItem="{Binding SelectedTable, Mode=TwoWay}"
+                    <TextBlock Text="Скважина:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox Width="280"
+                              ItemsSource="{Binding Wells}"
+                              SelectedItem="{Binding SelectedWell, Mode=TwoWay}"
                               IsEnabled="{Binding IsConnected}"
-                              ToolTip="Источник данных, который вы хотите просмотреть">
+                              ToolTip="Выберите скважину для просмотра">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding DisplayName}" ToolTip="{Binding Description}"/>
+                                <TextBlock Text="{Binding Display}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Text="Рейс:" VerticalAlignment="Center" Margin="14,0,6,0"/>
+                    <ComboBox Width="260"
+                              ItemsSource="{Binding Races}"
+                              SelectedItem="{Binding SelectedRace, Mode=TwoWay}"
+                              IsEnabled="{Binding IsConnected}"
+                              ToolTip="Ограничьте просмотр одним рейсом или выберите «Все рейсы»">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Display}"/>
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
@@ -111,7 +127,7 @@
         <!-- ===================== Main: column panel + tab control ===================== -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" MinWidth="160"/>
+                <ColumnDefinition Width="240" MinWidth="180"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -131,7 +147,7 @@
                                 ToolTip="Переместить выбранную колонку вверх"/>
                         <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"
                                 ToolTip="Переместить выбранную колонку вниз"/>
-                        <CheckBox Content="Все" IsThreeState="True"
+                        <CheckBox Content="Все"
                                   IsChecked="{Binding AllColumnsVisible, Mode=TwoWay}"
                                   VerticalAlignment="Center"
                                   ToolTip="Показать или скрыть сразу все колонки"/>
@@ -163,8 +179,7 @@
 
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#DDDDDD"/>
 
-            <!-- ============== Right: tabs (Графики / Таблица) ============== -->
-            <!-- "Схема" and "SQL" tabs are hidden — they require database/SQL knowledge. -->
+            <!-- ============== Right: tabs (Графики / Таблица / Операции) ============== -->
             <TabControl Grid.Column="2" Margin="6" SelectedIndex="1">
 
                 <!-- ===== Графики ===== -->
@@ -200,47 +215,18 @@
                               AlternatingRowBackground="#F7F9FB"/>
                 </TabItem>
 
-                <!-- ===== Схема (скрыто — техническая информация) ===== -->
-                <TabItem Header="Схема" Visibility="Collapsed">
-                    <TabControl>
-                        <TabItem Header="Колонки">
-                            <DataGrid ItemsSource="{Binding ColumnsData}"/>
-                        </TabItem>
-                        <TabItem Header="Индексы">
-                            <DataGrid ItemsSource="{Binding IndexesData}"/>
-                        </TabItem>
-                    </TabControl>
-                </TabItem>
-
-                <!-- ===== SQL (скрыто — для разработчиков) ===== -->
-                <TabItem Header="SQL" Visibility="Collapsed">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="160"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBox Grid.Row="0"
-                                 Text="{Binding QueryText, UpdateSourceTrigger=PropertyChanged}"
-                                 AcceptsReturn="True" AcceptsTab="True"
-                                 FontFamily="Consolas" FontSize="13"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 Margin="6"/>
-
-                        <Border Grid.Row="1" Padding="6,0" Margin="0,0,0,6">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Выполнить (F5)"     Command="{Binding ExecuteQueryCommand}"/>
-                                <Button Content="Экспорт CSV..."     Command="{Binding ExportQueryCommand}" Margin="6,0,0,0"/>
-                                <TextBlock Text="{Binding QueryStatus}"
-                                           VerticalAlignment="Center" Margin="14,0,0,0"
-                                           Foreground="{StaticResource MutedForeground}"/>
-                            </StackPanel>
-                        </Border>
-
-                        <DataGrid Grid.Row="2" ItemsSource="{Binding QueryResultData}" Margin="6,0,6,6"/>
-                    </Grid>
+                <!-- ===== Операции ===== -->
+                <TabItem Header="Операции">
+                    <DataGrid x:Name="OperationsGrid"
+                              ItemsSource="{Binding OperationsData}"
+                              AutoGeneratingColumn="OperationsGrid_AutoGeneratingColumn"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="True"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F7F9FB"/>
                 </TabItem>
             </TabControl>
         </Grid>

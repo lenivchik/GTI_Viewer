@@ -26,19 +26,18 @@ public sealed class MainViewModel : ObservableObject
         _db = db;
         _settings = settings;
 
-        AllTables         = new ObservableCollection<DatabaseObject>();
-        Columns           = new ObservableCollection<ColumnVisibility>();
-        RecentConnections = new ObservableCollection<ConnectionSettings>();
+        Wells              = new ObservableCollection<WellInfo>();
+        Races              = new ObservableCollection<RaceInfo>();
+        Columns            = new ObservableCollection<ColumnVisibility>();
+        RecentConnections  = new ObservableCollection<ConnectionSettings>();
 
         Columns.CollectionChanged += OnColumnsCollectionChanged;
 
         DisconnectCommand     = new AsyncRelayCommand(_ => DisconnectAsync(),       _ => IsConnected);
-        RefreshCommand        = new AsyncRelayCommand(_ => RefreshSelectedAsync(), _ => IsConnected && SelectedTable is not null);
-        ExecuteQueryCommand   = new AsyncRelayCommand(_ => ExecuteQueryAsync(),    _ => IsConnected && !string.IsNullOrWhiteSpace(QueryText));
-        ExportDataCommand     = new RelayCommand(_ => ExportDataToCsv(),  _ => CurrentTableData is not null);
-        ExportQueryCommand    = new RelayCommand(_ => ExportQueryToCsv(), _ => QueryResultData is not null);
-        ShowAllColumnsCommand = new RelayCommand(_ => SetAllColumns(true));
-        HideAllColumnsCommand = new RelayCommand(_ => SetAllColumns(false));
+        RefreshCommand        = new AsyncRelayCommand(_ => RefreshSelectionAsync(), _ => IsConnected && SelectedWell is not null);
+        ExportDataCommand     = new RelayCommand(_ => ExportDataToCsv(),       _ => CurrentTableData is not null);
+        ExportOperationsCommand = new RelayCommand(_ => ExportOperationsToCsv(), _ => OperationsData is not null);
+        ToggleAllColumnsCommand = new RelayCommand(_ => ToggleAllColumns(), _ => Columns.Count > 0);
         MoveColumnUpCommand   = new RelayCommand(_ => MoveSelectedColumn(-1), _ => CanMoveSelected(-1));
         MoveColumnDownCommand = new RelayCommand(_ => MoveSelectedColumn(+1), _ => CanMoveSelected(+1));
         UseRecentCommand      = new RelayCommand(p => UseRecent(p as ConnectionSettings));
@@ -80,28 +79,51 @@ public sealed class MainViewModel : ObservableObject
     public string? CursorText { get => _cursorText; set => SetProperty(ref _cursorText, value); }
 
     // ============================================================
-    // Tables and selection
+    // Wells & races
     // ============================================================
 
-    public ObservableCollection<DatabaseObject> AllTables { get; }
+    public ObservableCollection<WellInfo> Wells { get; }
+    public ObservableCollection<RaceInfo> Races { get; }
 
-    private DatabaseObject? _selectedTable;
-    public DatabaseObject? SelectedTable
+    private WellInfo? _selectedWell;
+    public WellInfo? SelectedWell
     {
-        get => _selectedTable;
+        get => _selectedWell;
         set
         {
-            if (SetProperty(ref _selectedTable, value))
+            if (SetProperty(ref _selectedWell, value))
             {
                 OnPropertyChanged(nameof(WindowTitle));
-                _ = LoadSelectedTableAsync();
+                _ = OnWellChangedAsync();
             }
         }
     }
 
-    public string WindowTitle => SelectedTable is null
-        ? "Просмотр данных ГТИ"
-        : $"Просмотр данных: «{SelectedTable.DisplayName}»";
+    private RaceInfo? _selectedRace;
+    public RaceInfo? SelectedRace
+    {
+        get => _selectedRace;
+        set
+        {
+            if (SetProperty(ref _selectedRace, value))
+            {
+                OnPropertyChanged(nameof(WindowTitle));
+                _ = LoadRaceContentsAsync();
+            }
+        }
+    }
+
+    public string WindowTitle
+    {
+        get
+        {
+            if (SelectedWell is null) return "Просмотр данных ГТИ";
+            var raceText = SelectedRace is null || SelectedRace.IsAllRaces
+                ? "все рейсы"
+                : SelectedRace.Display;
+            return $"Просмотр данных ГТИ: {SelectedWell.Name} — {raceText}";
+        }
+    }
 
     // ============================================================
     // Column visibility list (drives the left checkbox panel)
@@ -116,22 +138,19 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _selectedColumn, value);
     }
 
-    /// <summary>Tri-state "Все" checkbox. Null = mixed.</summary>
-    public bool? AllColumnsVisible
+    /// <summary>True only when every column is visible. Used by the "Все" checkbox.</summary>
+    public bool AllColumnsVisible
     {
-        get
-        {
-            if (Columns.Count == 0) return false;
-            int visible = Columns.Count(c => c.IsVisible);
-            if (visible == Columns.Count) return true;
-            if (visible == 0) return false;
-            return null;
-        }
-        set
-        {
-            if (!value.HasValue) return; // ignore null writes from the three-state CheckBox
-            SetAllColumns(value.Value);
-        }
+        get => Columns.Count > 0 && Columns.All(c => c.IsVisible);
+        set => SetAllColumns(value);
+    }
+
+    /// <summary>Click handler for the "Все" checkbox: invert the current state cleanly.</summary>
+    private void ToggleAllColumns()
+    {
+        if (Columns.Count == 0) return;
+        var anyHidden = Columns.Any(c => !c.IsVisible);
+        SetAllColumns(anyHidden);   // if anything is hidden → show all; else hide all
     }
 
     private void SetAllColumns(bool isVisible)
@@ -180,17 +199,14 @@ public sealed class MainViewModel : ObservableObject
     }
 
     // ============================================================
-    // Data tabs
+    // Data
     // ============================================================
 
     private DataView? _currentTableData;
     public DataView? CurrentTableData { get => _currentTableData; set => SetProperty(ref _currentTableData, value); }
 
-    private DataView? _columnsData;
-    public DataView? ColumnsData { get => _columnsData; set => SetProperty(ref _columnsData, value); }
-
-    private DataView? _indexesData;
-    public DataView? IndexesData { get => _indexesData; set => SetProperty(ref _indexesData, value); }
+    private DataView? _operationsData;
+    public DataView? OperationsData { get => _operationsData; set => SetProperty(ref _operationsData, value); }
 
     private int _rowLimit = 1000;
     public int RowLimit { get => _rowLimit; set => SetProperty(ref _rowLimit, value); }
@@ -198,18 +214,8 @@ public sealed class MainViewModel : ObservableObject
     private string? _rowCountText;
     public string? RowCountText { get => _rowCountText; set => SetProperty(ref _rowCountText, value); }
 
-    // ============================================================
-    // SQL tab
-    // ============================================================
-
-    private string _queryText = "SELECT FIRST 50 * FROM RDB$RELATIONS WHERE RDB$SYSTEM_FLAG = 0";
-    public string QueryText { get => _queryText; set => SetProperty(ref _queryText, value); }
-
-    private DataView? _queryResultData;
-    public DataView? QueryResultData { get => _queryResultData; set => SetProperty(ref _queryResultData, value); }
-
-    private string? _queryStatus;
-    public string? QueryStatus { get => _queryStatus; set => SetProperty(ref _queryStatus, value); }
+    private string? _operationsCountText;
+    public string? OperationsCountText { get => _operationsCountText; set => SetProperty(ref _operationsCountText, value); }
 
     // ============================================================
     // Recent connections
@@ -221,20 +227,18 @@ public sealed class MainViewModel : ObservableObject
     // Commands
     // ============================================================
 
-    public ICommand DisconnectCommand     { get; }
-    public ICommand RefreshCommand        { get; }
-    public ICommand ExecuteQueryCommand   { get; }
-    public ICommand ExportDataCommand     { get; }
-    public ICommand ExportQueryCommand    { get; }
-    public ICommand ShowAllColumnsCommand { get; }
-    public ICommand HideAllColumnsCommand { get; }
-    public ICommand MoveColumnUpCommand   { get; }
-    public ICommand MoveColumnDownCommand { get; }
-    public ICommand UseRecentCommand      { get; }
-    public ICommand ClearRecentCommand    { get; }
+    public ICommand DisconnectCommand        { get; }
+    public ICommand RefreshCommand           { get; }
+    public ICommand ExportDataCommand        { get; }
+    public ICommand ExportOperationsCommand  { get; }
+    public ICommand ToggleAllColumnsCommand  { get; }
+    public ICommand MoveColumnUpCommand      { get; }
+    public ICommand MoveColumnDownCommand    { get; }
+    public ICommand UseRecentCommand         { get; }
+    public ICommand ClearRecentCommand       { get; }
 
     // ============================================================
-    // Connect / disconnect (called from MainWindow after dialog OK)
+    // Connect / disconnect
     // ============================================================
 
     public async Task<bool> ConnectAsync(ConnectionSettings settings)
@@ -247,9 +251,9 @@ public sealed class MainViewModel : ObservableObject
             Connection = settings;
             IsConnected = true;
 
-            await LoadTablesAsync().ConfigureAwait(true);
+            await LoadWellsAsync().ConfigureAwait(true);
 
-            StatusText = "Загружено";
+            StatusText = "Подключено";
             ConnectionInfoText = $"{settings.Display}  ·  {_db.ServerVersion}";
 
             AddToRecent(settings);
@@ -270,13 +274,16 @@ public sealed class MainViewModel : ObservableObject
     {
         await _db.DisconnectAsync().ConfigureAwait(true);
         IsConnected = false;
-        AllTables.Clear();
+        Wells.Clear();
+        Races.Clear();
         Columns.Clear();
-        SelectedTable = null;
-        CurrentTableData = ColumnsData = IndexesData = QueryResultData = null;
+        SelectedWell = null;
+        SelectedRace = null;
+        CurrentTableData = OperationsData = null;
         StatusText = "Отключено";
         ConnectionInfoText = null;
         RowCountText = null;
+        OperationsCountText = null;
         CursorText = null;
     }
 
@@ -284,41 +291,74 @@ public sealed class MainViewModel : ObservableObject
     // Loading
     // ============================================================
 
-    private async Task LoadTablesAsync()
+    private async Task LoadWellsAsync()
     {
-        var t = await _db.GetTablesAsync().ConfigureAwait(true);
-        var v = await _db.GetViewsAsync().ConfigureAwait(true);
+        try
+        {
+            var list = await _db.GetWellsAsync().ConfigureAwait(true);
+            Wells.Clear();
+            foreach (var w in list) Wells.Add(w);
 
-        // Show tables that have a friendly Russian label first; unknowns fall to the bottom.
-        var ordered = t.Concat(v)
-            .OrderBy(x => FriendlyNames.GetTable(x.Name) is null)
-            .ThenBy(x => x.DisplayName, StringComparer.CurrentCulture);
+            StatusText = $"Скважин загружено: {Wells.Count}";
 
-        AllTables.Clear();
-        foreach (var x in ordered) AllTables.Add(x);
-
-        StatusText = $"Загружено: {t.Count + v.Count} источников данных";
+            // Auto-select the first well so the user immediately sees data.
+            SelectedWell = Wells.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Ошибка чтения скважин",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
-    private async Task LoadSelectedTableAsync()
+    private async Task OnWellChangedAsync()
     {
-        if (SelectedTable is null || !IsConnected)
+        Races.Clear();
+        SelectedRace = null;
+
+        if (SelectedWell is null || !IsConnected)
         {
-            CurrentTableData = ColumnsData = IndexesData = null;
+            CurrentTableData = OperationsData = null;
             Columns.Clear();
             return;
         }
-        await LoadDataAsync(SelectedTable.Name).ConfigureAwait(true);
-        await LoadColumnsAsync(SelectedTable.Name).ConfigureAwait(true);
-        await LoadIndexesAsync(SelectedTable.Name).ConfigureAwait(true);
+
+        try
+        {
+            var list = await _db.GetRacesAsync(SelectedWell.WellId).ConfigureAwait(true);
+            Races.Add(RaceInfo.AllRaces);
+            foreach (var r in list) Races.Add(r);
+
+            // Default to "Все рейсы" so something useful loads right away.
+            SelectedRace = Races.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Ошибка чтения рейсов",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
-    private async Task LoadDataAsync(string objectName)
+    private async Task LoadRaceContentsAsync()
+    {
+        if (SelectedWell is null || !IsConnected)
+        {
+            CurrentTableData = OperationsData = null;
+            Columns.Clear();
+            return;
+        }
+
+        var raceId = (SelectedRace is null || SelectedRace.IsAllRaces) ? (long?)null : SelectedRace.RaceId;
+        await LoadRaceDataAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+        await LoadOperationsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+    }
+
+    private async Task LoadRaceDataAsync(long wellId, long? raceId)
     {
         try
         {
             var sw = Stopwatch.StartNew();
-            var dt = await _db.GetTableDataAsync(objectName, RowLimit).ConfigureAwait(true);
+            var dt = await _db.GetRaceDataAsync(wellId, raceId, RowLimit).ConfigureAwait(true);
             sw.Stop();
 
             RebuildColumnVisibility(dt);
@@ -334,103 +374,62 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private async Task LoadColumnsAsync(string tableName)
+    private async Task LoadOperationsAsync(long wellId, long? raceId)
     {
         try
         {
-            var dt = await _db.GetColumnsAsync(tableName).ConfigureAwait(true);
-            ColumnsData = dt.DefaultView;
+            var dt = await _db.GetOperationsAsync(wellId, raceId).ConfigureAwait(true);
+            OperationsData = dt.DefaultView;
+            OperationsCountText = $"Операций: {dt.Rows.Count}";
         }
         catch (Exception ex)
         {
-            ColumnsData = null;
-            MessageBox.Show(ex.Message, "Ошибка чтения схемы",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private async Task LoadIndexesAsync(string tableName)
-    {
-        try
-        {
-            var dt = await _db.GetIndexesAsync(tableName).ConfigureAwait(true);
-            IndexesData = dt.DefaultView;
-        }
-        catch (Exception ex)
-        {
-            IndexesData = null;
-            MessageBox.Show(ex.Message, "Ошибка чтения индексов",
+            OperationsData = null;
+            OperationsCountText = null;
+            MessageBox.Show(ex.Message, "Ошибка чтения операций",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void RebuildColumnVisibility(DataTable dt)
     {
-        // Preserve user's current visibility on refresh of the same table.
+        // Preserve user's current visibility on refresh.
         var prior = Columns.ToDictionary(c => c.Name, c => c.IsVisible);
         Columns.Clear();
-        var tableName = SelectedTable?.Name;
         foreach (DataColumn dc in dt.Columns)
         {
             Columns.Add(new ColumnVisibility
             {
                 Name        = dc.ColumnName,
-                DisplayName = FriendlyNames.GetColumnDisplay(tableName, dc.ColumnName),
-                Description = FriendlyNames.GetColumnDescription(tableName, dc.ColumnName),
+                DisplayName = FriendlyNames.GetColumnDisplay(null, dc.ColumnName),
+                Description = FriendlyNames.GetColumnDescription(null, dc.ColumnName),
                 IsVisible   = prior.TryGetValue(dc.ColumnName, out var v) ? v : true
             });
         }
         OnPropertyChanged(nameof(AllColumnsVisible));
     }
 
-    private async Task RefreshSelectedAsync() => await LoadSelectedTableAsync().ConfigureAwait(true);
-
-    // ============================================================
-    // SQL
-    // ============================================================
-
-    private async Task ExecuteQueryAsync()
-    {
-        var sql = QueryText?.Trim() ?? "";
-        if (sql.Length == 0) return;
-        try
-        {
-            QueryStatus = "Выполняется...";
-            var sw = Stopwatch.StartNew();
-            var head = sql.TrimStart().ToUpperInvariant();
-            bool isResultSet = head.StartsWith("SELECT") || head.StartsWith("WITH");
-
-            if (isResultSet)
-            {
-                var dt = await _db.ExecuteQueryAsync(sql).ConfigureAwait(true);
-                sw.Stop();
-                QueryResultData = dt.DefaultView;
-                QueryStatus = $"OK · {dt.Rows.Count} строк · {sw.ElapsedMilliseconds} мс";
-            }
-            else
-            {
-                var affected = await _db.ExecuteNonQueryAsync(sql).ConfigureAwait(true);
-                sw.Stop();
-                QueryResultData = null;
-                QueryStatus = $"OK · затронуто строк: {affected} · {sw.ElapsedMilliseconds} мс";
-            }
-        }
-        catch (Exception ex)
-        {
-            QueryStatus = "Ошибка";
-            MessageBox.Show(ex.Message, "Ошибка SQL",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+    private async Task RefreshSelectionAsync() => await LoadRaceContentsAsync().ConfigureAwait(true);
 
     // ============================================================
     // CSV export
     // ============================================================
 
-    private void ExportDataToCsv()  => ExportToCsv(CurrentTableData, SelectedTable?.Name, SelectedTable?.DisplayName ?? "data");
-    private void ExportQueryToCsv() => ExportToCsv(QueryResultData, null, "Результат запроса");
+    private void ExportDataToCsv()
+    {
+        var nameHint = SelectedWell is null
+            ? "Данные ГТИ"
+            : $"{SelectedWell.Name} {(SelectedRace is null || SelectedRace.IsAllRaces ? "все рейсы" : "Рейс " + SelectedRace.Number)}";
+        ExportToCsv(CurrentTableData, null, nameHint);
+    }
 
-    private static void ExportToCsv(DataView? view, string? tableName, string suggestedName)
+    private void ExportOperationsToCsv()
+    {
+        var nameHint = SelectedWell is null ? "Операции" : $"Операции — {SelectedWell.Name}";
+        ExportToCsv(OperationsData, "OPERATIONS_VIEW", nameHint);
+    }
+
+    private static void ExportToCsv(DataView? view, string? tableContext, string suggestedName)
     {
         if (view is null) return;
         var dlg = new SaveFileDialog
@@ -446,7 +445,7 @@ public sealed class MainViewModel : ObservableObject
             var sb = new StringBuilder();
             sb.AppendLine(string.Join(",",
                 dt.Columns.Cast<DataColumn>()
-                  .Select(c => CsvField(FriendlyNames.GetColumnDisplay(tableName, c.ColumnName)))));
+                  .Select(c => CsvField(FriendlyNames.GetColumnDisplay(tableContext, c.ColumnName)))));
             foreach (DataRowView rv in view)
             {
                 sb.AppendLine(string.Join(",",
