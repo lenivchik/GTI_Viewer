@@ -69,9 +69,10 @@ public partial class MainWindow : Window
         var rawName = e.PropertyName;
 
         // Use the friendly name resolved by the ViewModel (which handles cross-table lookup).
+        // SortMemberPath is auto-set to the property name and preserves the raw DB column for
+        // sorting and for value lookup; we just override the visual Header text.
         var match = _vm.Columns.FirstOrDefault(c => c.Name == rawName);
         col.Header = match?.DisplayName ?? FriendlyNames.GetColumnDisplay(null, rawName);
-        col.Tag    = rawName;
 
         if (match is null) return;
 
@@ -95,7 +96,8 @@ public partial class MainWindow : Window
 
         foreach (var col in DataGrid.Columns)
         {
-            if (col.Tag is string raw && desired.TryGetValue(raw, out var idx))
+            var raw = col.SortMemberPath;
+            if (!string.IsNullOrEmpty(raw) && desired.TryGetValue(raw, out var idx))
                 col.DisplayIndex = idx;
         }
     }
@@ -111,7 +113,9 @@ public partial class MainWindow : Window
 
         var rowIndex = grid.Items.IndexOf(grid.CurrentCell.Item) + 1;
         var headerText = grid.CurrentCell.Column.Header?.ToString() ?? "";
-        var rawColumnName = grid.CurrentCell.Column.Tag as string ?? headerText;
+        // SortMemberPath holds the original DB column name on auto-generated columns.
+        var rawColumnName = grid.CurrentCell.Column.SortMemberPath;
+        if (string.IsNullOrEmpty(rawColumnName)) rawColumnName = headerText;
 
         var value = "";
         try
@@ -135,6 +139,5 @@ public partial class MainWindow : Window
     {
         // The OPERATIONS_VIEW context maps the aliased columns produced by GetOperationsAsync.
         e.Column.Header = FriendlyNames.GetColumnDisplay("OPERATIONS_VIEW", e.PropertyName);
-        e.Column.Tag    = e.PropertyName;
     }
 }
