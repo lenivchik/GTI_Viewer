@@ -333,8 +333,9 @@ public sealed class FirebirdService : IFirebirdService
         var sql = $@"
             SELECT FIRST 500
                    o.REC_ID                                         AS OP_NUMBER,
+                   work_t.NAME                                      AS WORK_KIND_NAME,
                    oper_t.NAME                                      AS OPER_NAME,
-                   user_t.NAME                                      AS USER_OPER_NAME,
+                   sub_t.NAME                                       AS SUB_OPER_NAME,
                    o.START_TIME                                     AS OP_START,
                    o.STOP_TIME                                      AS OP_STOP,
                    CASE
@@ -344,8 +345,9 @@ public sealed class FirebirdService : IFirebirdService
                    END                                              AS OP_DURATION_HOURS,
                    o.COMMENT                                        AS OP_COMMENT
             FROM OPERATIONS o
-            LEFT JOIN OPER_TYPES oper_t ON oper_t.OPER_ID = o.OPER_ID
-            LEFT JOIN OPER_TYPES user_t ON user_t.OPER_ID = o.USER_OPER_ID
+            LEFT JOIN WORK_TYPES    work_t ON work_t.WORK_ID   = o.WORK_ID
+            LEFT JOIN OPER_TYPES    oper_t ON oper_t.OPER_ID   = o.OPER_ID
+            LEFT JOIN SUBOPER_TYPES sub_t  ON sub_t.SUBOPER_ID = o.SUBOPER_ID
             {raceJoin}
             WHERE o.WELL_ID = @wellId
               {raceFilter}

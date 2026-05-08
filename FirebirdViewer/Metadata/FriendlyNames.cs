@@ -274,8 +274,9 @@ public static class FriendlyNames
         ["OPERATIONS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
         {
             ["OP_NUMBER"]         = new("№",                 "",    "Внутренний номер записи операции."),
+            ["WORK_KIND_NAME"]    = new("Вид работ",         "",    "Категория работы (из справочника WORK_TYPES)."),
             ["OPER_NAME"]         = new("Операция",          "",    "Название операции (из справочника OPER_TYPES)."),
-            ["USER_OPER_NAME"]    = new("Подоперация",       "",    "Уточняющая операция (если задана)."),
+            ["SUB_OPER_NAME"]     = new("Подоперация",       "",    "Уточняющая операция (из справочника SUBOPER_TYPES)."),
             ["OP_START"]          = new("Начало",            "",    "Время начала операции."),
             ["OP_STOP"]           = new("Окончание",         "",    "Время окончания операции."),
             ["OP_DURATION_HOURS"] = new("Длительность",      "час", "Длительность операции в часах."),
