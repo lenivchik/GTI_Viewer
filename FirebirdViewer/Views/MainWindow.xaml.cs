@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
@@ -74,6 +75,8 @@ public partial class MainWindow : Window
         var match = _vm.Columns.FirstOrDefault(c => c.Name == rawName);
         col.Header = match?.DisplayName ?? FriendlyNames.GetColumnDisplay(null, rawName);
 
+        ApplyTwoDecimalFormat(col, e.PropertyType);
+
         if (match is null) return;
 
         col.Visibility = match.IsVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -139,5 +142,22 @@ public partial class MainWindow : Window
     {
         // The OPERATIONS_VIEW context maps the aliased columns produced by GetOperationsAsync.
         e.Column.Header = FriendlyNames.GetColumnDisplay("OPERATIONS_VIEW", e.PropertyName);
+        ApplyTwoDecimalFormat(e.Column, e.PropertyType);
+    }
+
+    /// <summary>For float/double/decimal columns, render values with two decimal places.</summary>
+    private static void ApplyTwoDecimalFormat(DataGridColumn column, System.Type propertyType)
+    {
+        if (!IsDecimalType(propertyType)) return;
+        if (column is DataGridBoundColumn bound && bound.Binding is Binding binding)
+        {
+            binding.StringFormat = "0.00";
+        }
+    }
+
+    private static bool IsDecimalType(System.Type type)
+    {
+        var t = System.Nullable.GetUnderlyingType(type) ?? type;
+        return t == typeof(float) || t == typeof(double) || t == typeof(decimal);
     }
 }
