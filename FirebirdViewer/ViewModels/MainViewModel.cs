@@ -251,6 +251,7 @@ public sealed class MainViewModel : ObservableObject
             Connection = settings;
             IsConnected = true;
 
+            await LoadParameterCatalogAsync().ConfigureAwait(true);
             await LoadWellsAsync().ConfigureAwait(true);
 
             StatusText = "Подключено";
@@ -273,6 +274,7 @@ public sealed class MainViewModel : ObservableObject
     private async Task DisconnectAsync()
     {
         await _db.DisconnectAsync().ConfigureAwait(true);
+        FriendlyNames.ClearDynamicCatalog();
         IsConnected = false;
         Wells.Clear();
         Races.Clear();
@@ -290,6 +292,20 @@ public sealed class MainViewModel : ObservableObject
     // ============================================================
     // Loading
     // ============================================================
+
+    private async Task LoadParameterCatalogAsync()
+    {
+        try
+        {
+            var rows = await _db.GetParameterCatalogAsync().ConfigureAwait(true);
+            FriendlyNames.LoadFromParams(rows);
+        }
+        catch (Exception)
+        {
+            // PARAMS may be missing on legacy databases — fall back to hardcoded names.
+            FriendlyNames.ClearDynamicCatalog();
+        }
+    }
 
     private async Task LoadWellsAsync()
     {

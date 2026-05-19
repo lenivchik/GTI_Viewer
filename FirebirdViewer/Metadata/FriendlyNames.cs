@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
+using FirebirdViewer.Models;
 
 namespace FirebirdViewer.Metadata;
 
@@ -31,6 +32,18 @@ public static class FriendlyNames
         if (string.IsNullOrWhiteSpace(columnName)) return null;
         var col = columnName.Trim();
 
+        // 1) PARAMS table loaded from the live database — most authoritative source.
+        if (!string.IsNullOrWhiteSpace(tableName)
+            && _dynamicByTableField.TryGetValue((tableName.Trim(), col), out var fromParams1))
+        {
+            return fromParams1;
+        }
+        if (_dynamicByField.TryGetValue(col, out var fromParams2))
+        {
+            return fromParams2;
+        }
+
+        // 2) Hardcoded per-table dictionary (REC_HEADERS, OPERATIONS_VIEW, etc.).
         if (!string.IsNullOrWhiteSpace(tableName)
             && Columns.TryGetValue(tableName.Trim(), out var perTable)
             && perTable.TryGetValue(col, out var info))
@@ -38,10 +51,10 @@ public static class FriendlyNames
             return info;
         }
 
+        // 3) Common hardcoded fallback (IDs, time, depth).
         if (Common.TryGetValue(col, out var common)) return common;
 
-        // Fallback: when no table context is given (e.g. joined views), look across
-        // every per-table dictionary so REC_COMMON / REC_LAG columns still resolve.
+        // 4) Last resort: scan every per-table dictionary so joined views still resolve.
         if (string.IsNullOrWhiteSpace(tableName))
         {
             foreach (var dict in Columns.Values)
@@ -49,6 +62,61 @@ public static class FriendlyNames
         }
 
         return null;
+    }
+
+    // ============================================================
+    // Dynamic catalog (populated from the PARAMS table at connect time)
+    // ============================================================
+
+    private static readonly Dictionary<(string Table, string Field), ColumnInfo> _dynamicByTableField
+        = new(new TableFieldComparer());
+    private static readonly Dictionary<string, ColumnInfo> _dynamicByField
+        = new(System.StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Replace the dynamic catalog with the contents of the PARAMS table.
+    /// Called by <c>MainViewModel</c> once per successful connection.
+    /// </summary>
+    public static void LoadFromParams(IEnumerable<ParamCatalogRow> rows)
+    {
+        _dynamicByTableField.Clear();
+        _dynamicByField.Clear();
+        if (rows is null) return;
+
+        foreach (var r in rows)
+        {
+            if (string.IsNullOrWhiteSpace(r.TableField)) continue;
+
+            var display     = string.IsNullOrWhiteSpace(r.FullName) ? r.RegistrVar : r.FullName;
+            var description = string.IsNullOrWhiteSpace(r.ShortName)
+                ? (r.FullName ?? "")
+                : $"{r.FullName} ({r.ShortName})";
+            var info = new ColumnInfo(display, r.Unit ?? "", description);
+
+            _dynamicByField[r.TableField] = info;
+            if (!string.IsNullOrWhiteSpace(r.TableName))
+                _dynamicByTableField[(r.TableName, r.TableField)] = info;
+        }
+    }
+
+    public static void ClearDynamicCatalog()
+    {
+        _dynamicByTableField.Clear();
+        _dynamicByField.Clear();
+    }
+
+    private sealed class TableFieldComparer : IEqualityComparer<(string Table, string Field)>
+    {
+        public bool Equals((string Table, string Field) x, (string Table, string Field) y)
+            => System.StringComparer.OrdinalIgnoreCase.Equals(x.Table, y.Table)
+            && System.StringComparer.OrdinalIgnoreCase.Equals(x.Field, y.Field);
+
+        public int GetHashCode((string Table, string Field) obj)
+        {
+            var h1 = System.StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Table ?? "");
+            var h2 = System.StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Field ?? "");
+            return h1 * 397 ^ h2;
+        }
     }
 
     public static string GetColumnDisplay(string? tableName, string? columnName)

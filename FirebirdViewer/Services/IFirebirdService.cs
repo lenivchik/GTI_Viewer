@@ -28,6 +28,8 @@ public interface IFirebirdService : IAsyncDisposable
     Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default);
     /// <summary>Operations (операции) for a given well, optionally restricted to a race.</summary>
     Task<DataTable> GetOperationsAsync(long wellId, long? raceId, CancellationToken ct = default);
+    /// <summary>Parameter catalog from the PARAMS table — friendly names, units, source columns.</summary>
+    Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default);
 
     /// <summary>Executes a SELECT/WITH and returns a result set.</summary>
     Task<DataTable> ExecuteQueryAsync(string sql, CancellationToken ct = default);

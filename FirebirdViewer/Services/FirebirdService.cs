@@ -363,6 +363,30 @@ public sealed class FirebirdService : IFirebirdService
         return dt;
     }
 
+    public async Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default)
+    {
+        EnsureConnected();
+        const string sql = @"
+            SELECT REGISTR_VAR, FULL_NAME, SHORT_NAME, PARAM_UNIT, TABLE_NAME, TABLE_FIELD
+            FROM PARAMS";
+        var list = new List<ParamCatalogRow>();
+        await using var cmd = new FbCommand(sql, _connection);
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            list.Add(new ParamCatalogRow
+            {
+                RegistrVar = reader.IsDBNull(0) ? "" : reader.GetString(0).Trim(),
+                FullName   = reader.IsDBNull(1) ? "" : reader.GetString(1).Trim(),
+                ShortName  = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim(),
+                Unit       = reader.IsDBNull(3) ? "" : reader.GetString(3).Trim(),
+                TableName  = reader.IsDBNull(4) ? "" : reader.GetString(4).Trim(),
+                TableField = reader.IsDBNull(5) ? "" : reader.GetString(5).Trim(),
+            });
+        }
+        return list;
+    }
+
     // ===== Disposal =====
 
     public async ValueTask DisposeAsync() => await DisconnectAsync().ConfigureAwait(false);
