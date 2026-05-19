@@ -148,10 +148,16 @@ public partial class MainWindow : Window
     /// <summary>For float/double/decimal columns, render values with two decimal places.</summary>
     private static void ApplyTwoDecimalFormat(DataGridColumn column, System.Type propertyType)
     {
-        if (!IsDecimalType(propertyType)) return;
-        if (column is DataGridBoundColumn bound && bound.Binding is Binding binding)
+        if (column is not DataGridBoundColumn bound || bound.Binding is not Binding binding) return;
+
+        if (IsDecimalType(propertyType))
         {
             binding.StringFormat = "0.00";
+        }
+        else if (IsDateTimeType(propertyType))
+        {
+            // 24-hour clock, day-first — matches the Russian convention used by the operator UI.
+            binding.StringFormat = "dd.MM.yyyy HH:mm:ss";
         }
     }
 
@@ -159,5 +165,11 @@ public partial class MainWindow : Window
     {
         var t = System.Nullable.GetUnderlyingType(type) ?? type;
         return t == typeof(float) || t == typeof(double) || t == typeof(decimal);
+    }
+
+    private static bool IsDateTimeType(System.Type type)
+    {
+        var t = System.Nullable.GetUnderlyingType(type) ?? type;
+        return t == typeof(System.DateTime) || t == typeof(System.DateTimeOffset);
     }
 }
