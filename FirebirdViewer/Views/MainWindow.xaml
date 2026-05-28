@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:FirebirdViewer.ViewModels"
         xmlns:m="clr-namespace:FirebirdViewer.Models"
+        xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
@@ -184,20 +185,52 @@
 
                 <!-- ===== Графики ===== -->
                 <TabItem Header="Графики">
-                    <Grid Background="#FAFAFB">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
-                            <TextBlock Text="Графики"
-                                       FontSize="20" FontWeight="SemiBold"
-                                       Foreground="{StaticResource MutedForeground}"
-                                       HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                            <TextBlock TextWrapping="Wrap" TextAlignment="Center"
-                                       Foreground="{StaticResource MutedForeground}">
-                                Здесь будут отображаться графики выбранных параметров.
-                                Для просмотра графиков в реальном времени откройте программу
-                                <Run FontWeight="SemiBold">GtiRealtimeCharts</Run>.
-                            </TextBlock>
-                        </StackPanel>
-                    </Grid>
+                    <DockPanel>
+                        <!-- X-axis chooser -->
+                        <Border DockPanel.Dock="Top" Padding="6"
+                                Background="{StaticResource PanelBackground}"
+                                BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Ось X:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <RadioButton Content="Время"
+                                             GroupName="XAxis" Margin="0,0,12,0"
+                                             IsChecked="{Binding ChartXAxisIsTime, Mode=TwoWay}"/>
+                                <RadioButton Content="Глубина забоя"
+                                             GroupName="XAxis"
+                                             IsChecked="{Binding ChartXAxisIsDepth, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Parameter checkbox list on the left -->
+                        <Border DockPanel.Dock="Left" Width="240"
+                                BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,1,0">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
+                                    <TextBlock Text="Параметры на графике" Style="{StaticResource SectionHeaderText}"/>
+                                </Border>
+                                <ListBox ItemsSource="{Binding Columns}" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="2"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="ToolTip" Value="{Binding Description}"/>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type m:ColumnVisibility}">
+                                            <CheckBox IsChecked="{Binding IsInChart, Mode=TwoWay}"
+                                                      Content="{Binding DisplayName}"
+                                                      ToolTip="{Binding Description}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Chart -->
+                        <oxy:PlotView Model="{Binding ChartModel}" Background="White"/>
+                    </DockPanel>
                 </TabItem>
 
                 <!-- ===== Таблица ===== -->
