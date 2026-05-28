@@ -125,63 +125,8 @@
             </DockPanel>
         </Border>
 
-        <!-- ===================== Main: column panel + tab control ===================== -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" MinWidth="180"/>
-                <ColumnDefinition Width="5"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- ============== Left: "Показывать колонки" panel ============== -->
-            <DockPanel Grid.Column="0" Background="White">
-                <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
-                    <TextBlock Text="Показывать колонки" Style="{StaticResource SectionHeaderText}"/>
-                </Border>
-
-                <!-- Bottom: Up/Down/All controls -->
-                <Border DockPanel.Dock="Bottom" Padding="6"
-                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
-                        Background="{StaticResource PanelBackground}">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Вверх" Command="{Binding MoveColumnUpCommand}"   Width="60" Margin="0,0,4,0"
-                                ToolTip="Переместить выбранную колонку вверх"/>
-                        <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"
-                                ToolTip="Переместить выбранную колонку вниз"/>
-                        <CheckBox Content="Все"
-                                  IsChecked="{Binding AllColumnsVisible, Mode=TwoWay}"
-                                  VerticalAlignment="Center"
-                                  ToolTip="Показать или скрыть сразу все колонки"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- The checkbox list -->
-                <ListBox ItemsSource="{Binding Columns}"
-                         SelectedItem="{Binding SelectedColumn, Mode=TwoWay}"
-                         BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding" Value="2"/>
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                            <Setter Property="ToolTip" Value="{Binding Description}"/>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type m:ColumnVisibility}">
-                            <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                      Content="{Binding DisplayName}"
-                                      ToolTip="{Binding Description}"
-                                      VerticalContentAlignment="Center"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#DDDDDD"/>
-
-            <!-- ============== Right: tabs (Графики / Таблица / Операции) ============== -->
-            <TabControl Grid.Column="2" Margin="6" SelectedIndex="1">
+        <!-- ===================== Main: tab control ===================== -->
+        <TabControl Margin="6" SelectedIndex="1">
 
                 <!-- ===== Графики ===== -->
                 <TabItem Header="Графики">
@@ -235,17 +180,73 @@
 
                 <!-- ===== Таблица ===== -->
                 <TabItem Header="Таблица">
-                    <DataGrid x:Name="DataGrid"
-                              ItemsSource="{Binding CurrentTableData}"
-                              AutoGeneratingColumn="DataGrid_AutoGeneratingColumn"
-                              SelectedCellsChanged="DataGrid_SelectedCellsChanged"
-                              IsReadOnly="True"
-                              AutoGenerateColumns="True"
-                              HeadersVisibility="Column"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="False"
-                              GridLinesVisibility="Horizontal"
-                              AlternatingRowBackground="#F7F9FB"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="240" MinWidth="180"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ============== Left: "Показывать колонки" panel ============== -->
+                        <DockPanel Grid.Column="0" Background="White">
+                            <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
+                                <TextBlock Text="Показывать колонки" Style="{StaticResource SectionHeaderText}"/>
+                            </Border>
+
+                            <!-- Bottom: Up/Down/All controls -->
+                            <Border DockPanel.Dock="Bottom" Padding="6"
+                                    BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
+                                    Background="{StaticResource PanelBackground}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Вверх" Command="{Binding MoveColumnUpCommand}"   Width="60" Margin="0,0,4,0"
+                                            ToolTip="Переместить выбранную колонку вверх"/>
+                                    <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"
+                                            ToolTip="Переместить выбранную колонку вниз"/>
+                                    <CheckBox Content="Все"
+                                              IsChecked="{Binding AllColumnsVisible, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              ToolTip="Показать или скрыть сразу все колонки"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- The checkbox list -->
+                            <ListBox ItemsSource="{Binding Columns}"
+                                     SelectedItem="{Binding SelectedColumn, Mode=TwoWay}"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="2"/>
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="ToolTip" Value="{Binding Description}"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type m:ColumnVisibility}">
+                                        <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                                  Content="{Binding DisplayName}"
+                                                  ToolTip="{Binding Description}"
+                                                  VerticalContentAlignment="Center"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#DDDDDD"/>
+
+                        <DataGrid Grid.Column="2"
+                                  x:Name="DataGrid"
+                                  ItemsSource="{Binding CurrentTableData}"
+                                  AutoGeneratingColumn="DataGrid_AutoGeneratingColumn"
+                                  SelectedCellsChanged="DataGrid_SelectedCellsChanged"
+                                  IsReadOnly="True"
+                                  AutoGenerateColumns="True"
+                                  HeadersVisibility="Column"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  GridLinesVisibility="Horizontal"
+                                  AlternatingRowBackground="#F7F9FB"/>
+                    </Grid>
                 </TabItem>
 
                 <!-- ===== Операции ===== -->
@@ -261,8 +262,7 @@
                               GridLinesVisibility="Horizontal"
                               AlternatingRowBackground="#F7F9FB"/>
                 </TabItem>
-            </TabControl>
-        </Grid>
+        </TabControl>
 
     </DockPanel>
 </Window>
