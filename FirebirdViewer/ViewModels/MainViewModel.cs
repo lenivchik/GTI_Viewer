@@ -13,9 +13,6 @@ using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
 using Microsoft.Win32;
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
 
 namespace FirebirdViewer.ViewModels;
 
@@ -45,6 +42,11 @@ public sealed class MainViewModel : ObservableObject
         MoveColumnDownCommand = new RelayCommand(_ => MoveSelectedColumn(+1), _ => CanMoveSelected(+1));
         UseRecentCommand      = new RelayCommand(p => UseRecent(p as ConnectionSettings));
         ClearRecentCommand    = new RelayCommand(_ => ClearRecent());
+        AddChartCommand       = new RelayCommand(_ => AddChart());
+        RemoveChartCommand    = new RelayCommand(p => RemoveChart(p as ChartPanelViewModel));
+
+        // Seed one chart so the Графики tab is never empty.
+        AddChart();
 
         LoadSettings();
     }
@@ -199,159 +201,33 @@ public sealed class MainViewModel : ObservableObject
     {
         if (e.PropertyName == nameof(ColumnVisibility.IsVisible))
             OnPropertyChanged(nameof(AllColumnsVisible));
-        else if (e.PropertyName == nameof(ColumnVisibility.IsInChart))
-            RebuildChart();
     }
 
     // ============================================================
-    // Chart (Графики tab)
+    // Charts (Графики tab) — collection of chart panels
     // ============================================================
 
-    public enum ChartXAxisMode { Time, Depth }
+    public ObservableCollection<ChartPanelViewModel> Charts { get; } = new();
 
-    private ChartXAxisMode _chartXAxis = ChartXAxisMode.Time;
-    public ChartXAxisMode ChartXAxis
+    private int _nextChartNumber = 1;
+
+    private void AddChart()
     {
-        get => _chartXAxis;
-        set
-        {
-            if (SetProperty(ref _chartXAxis, value))
-            {
-                OnPropertyChanged(nameof(ChartXAxisIsTime));
-                OnPropertyChanged(nameof(ChartXAxisIsDepth));
-                RebuildChart();
-            }
-        }
+        var chart = new ChartPanelViewModel(_nextChartNumber++);
+        chart.SetData(CurrentTableData, Columns);
+        Charts.Add(chart);
     }
 
-    /// <summary>Helpers so RadioButtons can two-way bind to the enum.</summary>
-    public bool ChartXAxisIsTime
+    private void RemoveChart(ChartPanelViewModel? chart)
     {
-        get => ChartXAxis == ChartXAxisMode.Time;
-        set { if (value) ChartXAxis = ChartXAxisMode.Time; }
-    }
-    public bool ChartXAxisIsDepth
-    {
-        get => ChartXAxis == ChartXAxisMode.Depth;
-        set { if (value) ChartXAxis = ChartXAxisMode.Depth; }
+        if (chart is null) return;
+        Charts.Remove(chart);
     }
 
-    private PlotModel _chartModel = new();
-    public PlotModel ChartModel
+    /// <summary>Push the current data set into every chart panel.</summary>
+    private void PushDataToCharts()
     {
-        get => _chartModel;
-        private set => SetProperty(ref _chartModel, value);
-    }
-
-    private void RebuildChart()
-    {
-        var model = new PlotModel
-        {
-            PlotAreaBorderColor = OxyColors.LightGray,
-            IsLegendVisible = true,
-        };
-        model.Legends.Add(new OxyPlot.Legends.Legend
-        {
-            LegendPosition = OxyPlot.Legends.LegendPosition.RightTop,
-            LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
-            LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
-        });
-
-        var table = CurrentTableData?.Table;
-        var selected = Columns.Where(c => c.IsInChart).ToList();
-
-        // X axis (always present so the empty plot still looks like a chart)
-        bool isTime = ChartXAxis == ChartXAxisMode.Time;
-        if (isTime)
-        {
-            model.Axes.Add(new DateTimeAxis
-            {
-                Position = AxisPosition.Bottom,
-                StringFormat = "dd.MM HH:mm",
-                Title = "Время",
-                IntervalLength = 80,
-            });
-        }
-        else
-        {
-            model.Axes.Add(new LinearAxis
-            {
-                Position = AxisPosition.Bottom,
-                Title = "Глубина забоя, м",
-            });
-        }
-        model.Axes.Add(new LinearAxis
-        {
-            Position = AxisPosition.Left,
-            Title = "Значение",
-        });
-
-        if (table is null || selected.Count == 0)
-        {
-            ChartModel = model;
-            return;
-        }
-
-        string xCol = isTime ? "REC_TIME" : "BOTTOM_DEPTH";
-        if (!table.Columns.Contains(xCol))
-        {
-            ChartModel = model;
-            return;
-        }
-
-        // Rows arrive newest-first (ORDER BY REC_HEADER_ID DESC); reverse for left-to-right plotting.
-        var rowsChronological = new List<DataRow>(table.Rows.Count);
-        for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
-
-        foreach (var col in selected)
-        {
-            if (!table.Columns.Contains(col.Name)) continue;
-            var series = new LineSeries
-            {
-                Title = col.DisplayName,
-                StrokeThickness = 1.5,
-                MarkerType = MarkerType.None,
-            };
-            foreach (var row in rowsChronological)
-            {
-                var xRaw = row[xCol];
-                var yRaw = row[col.Name];
-                if (xRaw is DBNull || yRaw is DBNull) continue;
-
-                double x;
-                if (isTime)
-                {
-                    if (xRaw is not DateTime dtv) continue;
-                    x = DateTimeAxis.ToDouble(dtv);
-                }
-                else if (!TryToDouble(xRaw, out x)) continue;
-
-                if (!TryToDouble(yRaw, out var y)) continue;
-
-                series.Points.Add(new DataPoint(x, y));
-            }
-            if (series.Points.Count > 0)
-                model.Series.Add(series);
-        }
-
-        ChartModel = model;
-    }
-
-    private static bool TryToDouble(object value, out double result)
-    {
-        switch (value)
-        {
-            case double d:  result = d;          return true;
-            case float f:   result = f;          return true;
-            case decimal m: result = (double)m;  return true;
-            case int i:     result = i;          return true;
-            case long l:    result = l;          return true;
-            case short s:   result = s;          return true;
-            case byte b:    result = b;          return true;
-        }
-        var s2 = value?.ToString();
-        return double.TryParse(s2, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result)
-            || double.TryParse(s2, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out result);
+        foreach (var c in Charts) c.SetData(CurrentTableData, Columns);
     }
 
     // ============================================================
@@ -392,6 +268,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand MoveColumnDownCommand    { get; }
     public ICommand UseRecentCommand         { get; }
     public ICommand ClearRecentCommand       { get; }
+    public ICommand AddChartCommand          { get; }
+    public ICommand RemoveChartCommand       { get; }
 
     // ============================================================
     // Connect / disconnect
@@ -443,7 +321,7 @@ public sealed class MainViewModel : ObservableObject
         RowCountText = null;
         OperationsCountText = null;
         CursorText = null;
-        RebuildChart();
+        PushDataToCharts();
     }
 
     // ============================================================
@@ -537,7 +415,7 @@ public sealed class MainViewModel : ObservableObject
             RebuildColumnVisibility(dt);
             CurrentTableData = dt.DefaultView;
             RowCountText = $"Записей: {dt.Rows.Count} (показано не более {RowLimit})";
-            RebuildChart();
+            PushDataToCharts();
         }
         catch (Exception ex)
         {

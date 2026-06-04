@@ -21,12 +21,4 @@ public sealed class ColumnVisibility : ObservableObject
         get => _isVisible;
         set => SetProperty(ref _isVisible, value);
     }
-
-    /// <summary>True when this parameter is plotted on the Графики tab.</summary>
-    private bool _isInChart;
-    public bool IsInChart
-    {
-        get => _isInChart;
-        set => SetProperty(ref _isInChart, value);
-    }
 }

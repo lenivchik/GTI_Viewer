@@ -131,50 +131,91 @@
                 <!-- ===== Графики ===== -->
                 <TabItem Header="Графики">
                     <DockPanel>
-                        <!-- X-axis chooser -->
+                        <!-- Toolbar: + Добавить график -->
                         <Border DockPanel.Dock="Top" Padding="6"
                                 Background="{StaticResource PanelBackground}"
                                 BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Ось X:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <RadioButton Content="Время"
-                                             GroupName="XAxis" Margin="0,0,12,0"
-                                             IsChecked="{Binding ChartXAxisIsTime, Mode=TwoWay}"/>
-                                <RadioButton Content="Глубина забоя"
-                                             GroupName="XAxis"
-                                             IsChecked="{Binding ChartXAxisIsDepth, Mode=TwoWay}"/>
+                                <Button Content="+ Добавить график"
+                                        Command="{Binding AddChartCommand}"
+                                        Padding="10,3"
+                                        ToolTip="Создать ещё одну панель графика"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Parameter checkbox list on the left -->
-                        <Border DockPanel.Dock="Left" Width="240"
-                                BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,1,0">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
-                                    <TextBlock Text="Параметры на графике" Style="{StaticResource SectionHeaderText}"/>
-                                </Border>
-                                <ListBox ItemsSource="{Binding Columns}" BorderThickness="0"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.ItemContainerStyle>
-                                        <Style TargetType="ListBoxItem">
-                                            <Setter Property="Padding" Value="2"/>
-                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                            <Setter Property="ToolTip" Value="{Binding Description}"/>
-                                        </Style>
-                                    </ListBox.ItemContainerStyle>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type m:ColumnVisibility}">
-                                            <CheckBox IsChecked="{Binding IsInChart, Mode=TwoWay}"
-                                                      Content="{Binding DisplayName}"
-                                                      ToolTip="{Binding Description}"/>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </DockPanel>
-                        </Border>
+                        <!-- One row per ChartPanelViewModel, stacked vertically -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Charts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ChartPanelViewModel}">
+                                        <Border BorderBrush="{StaticResource PanelBorder}"
+                                                BorderThickness="0,0,0,1"
+                                                Margin="0,0,0,4"
+                                                Background="White"
+                                                MinHeight="360">
+                                            <DockPanel>
+                                                <!-- Per-chart header: title, axis, orientation, remove -->
+                                                <Border DockPanel.Dock="Top" Padding="6"
+                                                        Background="{StaticResource PanelBackground}"
+                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Content="✕"
+                                                                Width="24" Height="22"
+                                                                ToolTip="Удалить этот график"
+                                                                Command="{Binding DataContext.RemoveChartCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"/>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Width="160" VerticalAlignment="Center"
+                                                                     ToolTip="Название графика"/>
 
-                        <!-- Chart -->
-                        <oxy:PlotView Model="{Binding ChartModel}" Background="White"/>
+                                                            <TextBlock Text="Ось X:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                                                            <RadioButton Content="Время" Margin="0,0,8,0"
+                                                                         IsChecked="{Binding XAxisIsTime, Mode=TwoWay}"/>
+                                                            <RadioButton Content="Глубина забоя"
+                                                                         IsChecked="{Binding XAxisIsDepth, Mode=TwoWay}"/>
+
+                                                            <TextBlock Text="Ориентация:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                                                            <RadioButton Content="Горизонт." Margin="0,0,8,0"
+                                                                         IsChecked="{Binding OrientationIsHorizontal, Mode=TwoWay}"/>
+                                                            <RadioButton Content="Вертикальн."
+                                                                         IsChecked="{Binding OrientationIsVertical, Mode=TwoWay}"/>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+
+                                                <!-- Per-chart parameter checkbox list -->
+                                                <Border DockPanel.Dock="Left" Width="200"
+                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,1,0">
+                                                    <ListBox ItemsSource="{Binding Parameters}"
+                                                             BorderThickness="0"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                        <ListBox.ItemContainerStyle>
+                                                            <Style TargetType="ListBoxItem">
+                                                                <Setter Property="Padding" Value="2"/>
+                                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                                <Setter Property="ToolTip" Value="{Binding Description}"/>
+                                                            </Style>
+                                                        </ListBox.ItemContainerStyle>
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:ChartParameterRef}">
+                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                          Content="{Binding DisplayName}"
+                                                                          ToolTip="{Binding Description}"/>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                </Border>
+
+                                                <!-- Chart -->
+                                                <oxy:PlotView Model="{Binding ChartModel}" Background="White"/>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </DockPanel>
                 </TabItem>
 
