@@ -84,6 +84,18 @@ public sealed class ChartPanelViewModel : ObservableObject
         set { if (value) Orientation = ChartOrientation.Vertical; }
     }
 
+    /// <summary>
+    /// When true, every curve gets its own auto-scaled value axis so a 0–10
+    /// parameter and a 0–100 parameter both fill the plot. When false, all
+    /// curves share a single value axis.
+    /// </summary>
+    private bool _separateScales = true;
+    public bool SeparateScales
+    {
+        get => _separateScales;
+        set { if (SetProperty(ref _separateScales, value)) Rebuild(); }
+    }
+
     private PlotModel _chartModel = new();
     public PlotModel ChartModel
     {
@@ -136,6 +148,11 @@ public sealed class ChartPanelViewModel : ObservableObject
             Rebuild();
     }
 
+    // Light grid colours shared by all axes.
+    private static readonly OxyColor MajorGrid = OxyColor.FromAColor(50, OxyColors.Gray);
+    private static readonly OxyColor MinorGrid = OxyColor.FromAColor(22, OxyColors.Gray);
+    private const string IndepKey = "indep";
+
     private void Rebuild()
     {
         var model = new PlotModel { PlotAreaBorderColor = OxyColors.LightGray };
@@ -146,91 +163,143 @@ public sealed class ChartPanelViewModel : ObservableObject
             LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
         });
 
-        var isTime  = XAxis == ChartXAxisMode.Time;
+        var isTime   = XAxis == ChartXAxisMode.Time;
         var vertical = Orientation == ChartOrientation.Vertical;
 
-        // === Axes ===
-        // Independent axis (time or depth) sits on Bottom for horizontal,
-        // Left for vertical. Depth axis is inverted in vertical mode so the
-        // chart reads top-down like a borehole log.
+        // === Independent axis (time or depth) ===
+        // Bottom for horizontal, Left for vertical. In vertical mode it is
+        // reversed so the chart reads top-down like a borehole log.
         var indepPosition = vertical ? AxisPosition.Left : AxisPosition.Bottom;
         Axis indepAxis = isTime
             ? new DateTimeAxis
               {
-                  Position = indepPosition,
                   StringFormat = "dd.MM HH:mm",
                   Title = "Время",
                   IntervalLength = 80,
-                  StartPosition = vertical ? 1 : 0,
-                  EndPosition   = vertical ? 0 : 1,
               }
             : new LinearAxis
               {
-                  Position = indepPosition,
                   Title = "Глубина забоя, м",
-                  StartPosition = vertical ? 1 : 0,
-                  EndPosition   = vertical ? 0 : 1,
               };
+        indepAxis.Key = IndepKey;
+        indepAxis.Position = indepPosition;
+        indepAxis.StartPosition = vertical ? 1 : 0;
+        indepAxis.EndPosition   = vertical ? 0 : 1;
+        ApplyGrid(indepAxis);
         model.Axes.Add(indepAxis);
-
-        // Dependent (value) axis on the other side.
-        model.Axes.Add(new LinearAxis
-        {
-            Position = vertical ? AxisPosition.Bottom : AxisPosition.Left,
-            Title = "Значение",
-        });
 
         var table = _data?.Table;
         var selected = Parameters.Where(p => p.IsSelected).ToList();
+        var valuePosition = vertical ? AxisPosition.Bottom : AxisPosition.Left;
 
-        if (table is not null && selected.Count > 0)
+        if (table is null || selected.Count == 0)
         {
-            var xCol = isTime ? "REC_TIME" : "BOTTOM_DEPTH";
-            if (table.Columns.Contains(xCol))
+            // Keep a placeholder value axis so an empty panel still looks like a chart.
+            var empty = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
+            ApplyGrid(empty);
+            model.Axes.Add(empty);
+            ChartModel = model;
+            return;
+        }
+
+        var xCol = isTime ? "REC_TIME" : "BOTTOM_DEPTH";
+        if (!table.Columns.Contains(xCol))
+        {
+            ChartModel = model;
+            return;
+        }
+
+        // Source rows are newest-first; reverse so the line draws chronologically.
+        var rowsChronological = new List<DataRow>(table.Rows.Count);
+        for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
+
+        // === Value axes ===
+        // Shared: one axis for everything. Separate: one auto-scaled, colour-matched
+        // axis per curve, stacked outward via PositionTier.
+        if (!SeparateScales)
+        {
+            var shared = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
+            ApplyGrid(shared);
+            model.Axes.Add(shared);
+        }
+
+        int tier = 0;
+        foreach (var p in selected)
+        {
+            if (!table.Columns.Contains(p.Name)) continue;
+
+            var colour = ColorPalette.For(p.Name);
+            string valueKey;
+
+            if (SeparateScales)
             {
-                // Source rows are newest-first; reverse so the line draws chronologically.
-                var rowsChronological = new List<DataRow>(table.Rows.Count);
-                for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
-
-                foreach (var p in selected)
+                valueKey = "v_" + p.Name;
+                var axis = new LinearAxis
                 {
-                    if (!table.Columns.Contains(p.Name)) continue;
-                    var series = new LineSeries
-                    {
-                        Title = p.DisplayName,
-                        StrokeThickness = 1.5,
-                        MarkerType = MarkerType.None,
-                        Color = ColorPalette.For(p.Name),
-                    };
-                    foreach (var row in rowsChronological)
-                    {
-                        var xRaw = row[xCol];
-                        var yRaw = row[p.Name];
-                        if (xRaw is DBNull || yRaw is DBNull) continue;
-
-                        double xVal;
-                        if (isTime)
-                        {
-                            if (xRaw is not DateTime dtv) continue;
-                            xVal = DateTimeAxis.ToDouble(dtv);
-                        }
-                        else if (!TryToDouble(xRaw, out xVal)) continue;
-
-                        if (!TryToDouble(yRaw, out var yVal)) continue;
-
-                        // In vertical mode the independent variable goes on the Y axis,
-                        // so we swap the components of the DataPoint.
-                        series.Points.Add(vertical
-                            ? new DataPoint(yVal, xVal)
-                            : new DataPoint(xVal, yVal));
-                    }
-                    if (series.Points.Count > 0)
-                        model.Series.Add(series);
-                }
+                    Position = valuePosition,
+                    Key = valueKey,
+                    Title = p.DisplayName,
+                    TitleColor = colour,
+                    TextColor = colour,
+                    AxislineColor = colour,
+                    AxislineStyle = LineStyle.Solid,
+                    TicklineColor = colour,
+                    PositionTier = tier,
+                };
+                // Grid only on the first tier to avoid a clutter of mismatched lines.
+                if (tier == 0) ApplyGrid(axis);
+                model.Axes.Add(axis);
+                tier++;
             }
+            else
+            {
+                valueKey = "value";
+            }
+
+            var series = new LineSeries
+            {
+                Title = p.DisplayName,
+                StrokeThickness = 1.5,
+                MarkerType = MarkerType.None,
+                Color = colour,
+                XAxisKey = vertical ? valueKey : IndepKey,
+                YAxisKey = vertical ? IndepKey : valueKey,
+            };
+            foreach (var row in rowsChronological)
+            {
+                var xRaw = row[xCol];
+                var yRaw = row[p.Name];
+                if (xRaw is DBNull || yRaw is DBNull) continue;
+
+                double indep;
+                if (isTime)
+                {
+                    if (xRaw is not DateTime dtv) continue;
+                    indep = DateTimeAxis.ToDouble(dtv);
+                }
+                else if (!TryToDouble(xRaw, out indep)) continue;
+
+                if (!TryToDouble(yRaw, out var value)) continue;
+
+                // Horizontal: X = independent, Y = value.
+                // Vertical:   X = value,       Y = independent.
+                series.Points.Add(vertical
+                    ? new DataPoint(value, indep)
+                    : new DataPoint(indep, value));
+            }
+            if (series.Points.Count > 0)
+                model.Series.Add(series);
         }
 
         ChartModel = model;
+    }
+
+    private static void ApplyGrid(Axis axis)
+    {
+        axis.MajorGridlineStyle = LineStyle.Solid;
+        axis.MajorGridlineColor = MajorGrid;
+        axis.MinorGridlineStyle = LineStyle.Dot;
+        axis.MinorGridlineColor = MinorGrid;
     }
 
     private static bool TryToDouble(object value, out double result)

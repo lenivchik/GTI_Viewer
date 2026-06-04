@@ -181,6 +181,11 @@
                                                                          IsChecked="{Binding OrientationIsHorizontal, Mode=TwoWay}"/>
                                                             <RadioButton Content="Вертикальн."
                                                                          IsChecked="{Binding OrientationIsVertical, Mode=TwoWay}"/>
+
+                                                            <CheckBox Content="Своя шкала для каждой кривой"
+                                                                      VerticalAlignment="Center" Margin="16,0,0,0"
+                                                                      IsChecked="{Binding SeparateScales, Mode=TwoWay}"
+                                                                      ToolTip="Каждая кривая получает свою ось значений (для разных диапазонов)"/>
                                                         </StackPanel>
                                                     </DockPanel>
                                                 </Border>
