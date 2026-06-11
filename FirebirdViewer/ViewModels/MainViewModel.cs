@@ -211,9 +211,41 @@ public sealed class MainViewModel : ObservableObject
 
     private int _nextChartNumber = 1;
 
+    /// <summary>
+    /// Orientation applied to every chart panel. Changing it propagates to all
+    /// existing charts and is inherited by new ones. The Графики tab layout
+    /// also reads this — horizontal stacks panels top-to-bottom, vertical
+    /// stacks them left-to-right.
+    /// </summary>
+    private ChartOrientation _globalChartOrientation = ChartOrientation.Horizontal;
+    public ChartOrientation GlobalChartOrientation
+    {
+        get => _globalChartOrientation;
+        set
+        {
+            if (SetProperty(ref _globalChartOrientation, value))
+            {
+                OnPropertyChanged(nameof(GlobalOrientationIsHorizontal));
+                OnPropertyChanged(nameof(GlobalOrientationIsVertical));
+                foreach (var c in Charts) c.Orientation = value;
+            }
+        }
+    }
+
+    public bool GlobalOrientationIsHorizontal
+    {
+        get => GlobalChartOrientation == ChartOrientation.Horizontal;
+        set { if (value) GlobalChartOrientation = ChartOrientation.Horizontal; }
+    }
+    public bool GlobalOrientationIsVertical
+    {
+        get => GlobalChartOrientation == ChartOrientation.Vertical;
+        set { if (value) GlobalChartOrientation = ChartOrientation.Vertical; }
+    }
+
     private void AddChart()
     {
-        var chart = new ChartPanelViewModel(_nextChartNumber++);
+        var chart = new ChartPanelViewModel(_nextChartNumber++) { Orientation = GlobalChartOrientation };
         chart.SetData(CurrentTableData, Columns);
         Charts.Add(chart);
     }

@@ -196,7 +196,8 @@ public sealed class ChartPanelViewModel : ObservableObject
         {
             // Keep a placeholder value axis so an empty panel still looks like a chart.
             var empty = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
-            ApplyGrid(empty);
+            if (vertical) empty.IsAxisVisible = false;
+            else ApplyGrid(empty);
             model.Axes.Add(empty);
             ChartModel = model;
             return;
@@ -219,7 +220,8 @@ public sealed class ChartPanelViewModel : ObservableObject
         if (!SeparateScales)
         {
             var shared = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
-            ApplyGrid(shared);
+            if (vertical) shared.IsAxisVisible = false;
+            else ApplyGrid(shared);
             model.Axes.Add(shared);
         }
 
@@ -246,8 +248,20 @@ public sealed class ChartPanelViewModel : ObservableObject
                     TicklineColor = colour,
                     PositionTier = tier,
                 };
-                // Grid only on the first tier to avoid a clutter of mismatched lines.
-                if (tier == 0) ApplyGrid(axis);
+                if (vertical)
+                {
+                    // In vertical orientation the value axes would stack at the bottom
+                    // of the chart and take up most of the height. Hide them — the
+                    // legend already names each curve, and OxyPlot's tracker shows the
+                    // exact value on hover.
+                    axis.IsAxisVisible = false;
+                }
+                else if (tier == 0)
+                {
+                    // Grid only on the first tier in horizontal mode to avoid a clutter
+                    // of mismatched lines.
+                    ApplyGrid(axis);
+                }
                 model.Axes.Add(axis);
                 tier++;
             }

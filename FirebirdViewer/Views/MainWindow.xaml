@@ -131,7 +131,7 @@
                 <!-- ===== Графики ===== -->
                 <TabItem Header="Графики">
                     <DockPanel>
-                        <!-- Toolbar: + Добавить график -->
+                        <!-- Global toolbar: + Добавить график, общая ориентация -->
                         <Border DockPanel.Dock="Top" Padding="6"
                                 Background="{StaticResource PanelBackground}"
                                 BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
@@ -140,22 +140,70 @@
                                         Command="{Binding AddChartCommand}"
                                         Padding="10,3"
                                         ToolTip="Создать ещё одну панель графика"/>
+
+                                <TextBlock Text="Ориентация:" VerticalAlignment="Center" Margin="20,0,6,0"/>
+                                <RadioButton Content="Горизонтальная"
+                                             GroupName="GlobalOrientation" Margin="0,0,8,0"
+                                             VerticalAlignment="Center"
+                                             IsChecked="{Binding GlobalOrientationIsHorizontal, Mode=TwoWay}"
+                                             ToolTip="Графики располагаются друг под другом"/>
+                                <RadioButton Content="Вертикальная"
+                                             GroupName="GlobalOrientation"
+                                             VerticalAlignment="Center"
+                                             IsChecked="{Binding GlobalOrientationIsVertical, Mode=TwoWay}"
+                                             ToolTip="Графики располагаются слева направо; новые добавляются справа"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- One row per ChartPanelViewModel, stacked vertically -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
+                        <!-- Charts list. ScrollViewer direction and ItemsPanel orientation
+                             flip together based on the global orientation. -->
+                        <ScrollViewer>
+                            <ScrollViewer.Style>
+                                <Style TargetType="ScrollViewer">
+                                    <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                    <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GlobalOrientationIsVertical}" Value="True">
+                                            <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+                                            <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ScrollViewer.Style>
+
                             <ItemsControl ItemsSource="{Binding Charts}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="ItemsPanel">
+                                            <Setter.Value>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Vertical"/>
+                                                </ItemsPanelTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding GlobalOrientationIsVertical}" Value="True">
+                                                <Setter Property="ItemsPanel">
+                                                    <Setter.Value>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal"/>
+                                                        </ItemsPanelTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:ChartPanelViewModel}">
                                         <Border BorderBrush="{StaticResource PanelBorder}"
-                                                BorderThickness="0,0,0,1"
-                                                Margin="0,0,0,4"
+                                                BorderThickness="0,0,1,1"
+                                                Margin="0,0,4,4"
                                                 Background="White"
-                                                MinHeight="360">
+                                                MinHeight="420" MinWidth="440">
                                             <DockPanel>
-                                                <!-- Per-chart header: title, axis, orientation, remove -->
+                                                <!-- Per-chart header: title, X-axis, parameters popup, scale toggle, remove -->
                                                 <Border DockPanel.Dock="Top" Padding="6"
                                                         Background="{StaticResource PanelBackground}"
                                                         BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
@@ -176,11 +224,42 @@
                                                             <RadioButton Content="Глубина забоя"
                                                                          IsChecked="{Binding XAxisIsDepth, Mode=TwoWay}"/>
 
-                                                            <TextBlock Text="Ориентация:" VerticalAlignment="Center" Margin="16,0,6,0"/>
-                                                            <RadioButton Content="Горизонт." Margin="0,0,8,0"
-                                                                         IsChecked="{Binding OrientationIsHorizontal, Mode=TwoWay}"/>
-                                                            <RadioButton Content="Вертикальн."
-                                                                         IsChecked="{Binding OrientationIsVertical, Mode=TwoWay}"/>
+                                                            <!-- Parameters: popup instead of a permanent left column -->
+                                                            <ToggleButton x:Name="ParamsButton"
+                                                                          Content="Параметры ▾" Padding="8,3"
+                                                                          Margin="16,0,0,0"
+                                                                          VerticalAlignment="Center"
+                                                                          ToolTip="Выбрать параметры для построения"/>
+                                                            <Popup IsOpen="{Binding IsChecked, ElementName=ParamsButton, Mode=TwoWay}"
+                                                                   PlacementTarget="{Binding ElementName=ParamsButton}"
+                                                                   Placement="Bottom"
+                                                                   StaysOpen="False"
+                                                                   AllowsTransparency="True">
+                                                                <Border Background="White"
+                                                                        BorderBrush="{StaticResource PanelBorder}"
+                                                                        BorderThickness="1"
+                                                                        Padding="4">
+                                                                    <ListBox ItemsSource="{Binding Parameters}"
+                                                                             MinWidth="240" MaxHeight="420"
+                                                                             BorderThickness="0"
+                                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                                        <ListBox.ItemContainerStyle>
+                                                                            <Style TargetType="ListBoxItem">
+                                                                                <Setter Property="Padding" Value="2"/>
+                                                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                                                <Setter Property="ToolTip" Value="{Binding Description}"/>
+                                                                            </Style>
+                                                                        </ListBox.ItemContainerStyle>
+                                                                        <ListBox.ItemTemplate>
+                                                                            <DataTemplate DataType="{x:Type vm:ChartParameterRef}">
+                                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                                          Content="{Binding DisplayName}"
+                                                                                          ToolTip="{Binding Description}"/>
+                                                                            </DataTemplate>
+                                                                        </ListBox.ItemTemplate>
+                                                                    </ListBox>
+                                                                </Border>
+                                                            </Popup>
 
                                                             <CheckBox Content="Своя шкала для каждой кривой"
                                                                       VerticalAlignment="Center" Margin="16,0,0,0"
@@ -188,29 +267,6 @@
                                                                       ToolTip="Каждая кривая получает свою ось значений (для разных диапазонов)"/>
                                                         </StackPanel>
                                                     </DockPanel>
-                                                </Border>
-
-                                                <!-- Per-chart parameter checkbox list -->
-                                                <Border DockPanel.Dock="Left" Width="200"
-                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,1,0">
-                                                    <ListBox ItemsSource="{Binding Parameters}"
-                                                             BorderThickness="0"
-                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                                        <ListBox.ItemContainerStyle>
-                                                            <Style TargetType="ListBoxItem">
-                                                                <Setter Property="Padding" Value="2"/>
-                                                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                                <Setter Property="ToolTip" Value="{Binding Description}"/>
-                                                            </Style>
-                                                        </ListBox.ItemContainerStyle>
-                                                        <ListBox.ItemTemplate>
-                                                            <DataTemplate DataType="{x:Type vm:ChartParameterRef}">
-                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                          Content="{Binding DisplayName}"
-                                                                          ToolTip="{Binding Description}"/>
-                                                            </DataTemplate>
-                                                        </ListBox.ItemTemplate>
-                                                    </ListBox>
                                                 </Border>
 
                                                 <!-- Chart -->
