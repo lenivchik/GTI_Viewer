@@ -25,6 +25,18 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         Title = $"График {number}";
         Parameters = new ObservableCollection<ChartParameterRef>();
+
+        // Stable PlotModel instance. We mutate Series/Axes in-place and call
+        // InvalidatePlot(true). Replacing the model would race with the
+        // PlotView attach/detach lifecycle when the ItemsPanel direction
+        // flips (yielding OxyPlot's "Plot model is already in use" error).
+        ChartModel = new PlotModel { PlotAreaBorderColor = OxyColors.LightGray };
+        ChartModel.Legends.Add(new OxyPlot.Legends.Legend
+        {
+            LegendPosition = OxyPlot.Legends.LegendPosition.RightTop,
+            LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
+            LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
+        });
     }
 
     public ObservableCollection<ChartParameterRef> Parameters { get; }
@@ -96,12 +108,8 @@ public sealed class ChartPanelViewModel : ObservableObject
         set { if (SetProperty(ref _separateScales, value)) Rebuild(); }
     }
 
-    private PlotModel _chartModel = new();
-    public PlotModel ChartModel
-    {
-        get => _chartModel;
-        private set => SetProperty(ref _chartModel, value);
-    }
+    /// <summary>Stable plot model. Mutated in place by <see cref="Rebuild"/>; never replaced.</summary>
+    public PlotModel ChartModel { get; }
 
     private DataView? _data;
 
@@ -155,20 +163,19 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     private void Rebuild()
     {
-        var model = new PlotModel { PlotAreaBorderColor = OxyColors.LightGray };
-        model.Legends.Add(new OxyPlot.Legends.Legend
-        {
-            LegendPosition = OxyPlot.Legends.LegendPosition.RightTop,
-            LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
-            LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
-        });
-
         var isTime   = XAxis == ChartXAxisMode.Time;
         var vertical = Orientation == ChartOrientation.Vertical;
 
+        // Build the new content into local lists first, then swap into the
+        // stable PlotModel under its SyncRoot. This keeps the same model
+        // instance attached to the PlotView and avoids OxyPlot's
+        // "Plot model is already in use" race during orientation flips.
+        var newAxes = new List<Axis>();
+        var newSeries = new List<OxyPlot.Series.Series>();
+
         // === Independent axis (time or depth) ===
-        // Bottom for horizontal, Left for vertical. In vertical mode it is
-        // reversed so the chart reads top-down like a borehole log.
+        // Horizontal: Bottom. Vertical: Left, reversed so the chart reads
+        // top-down like a borehole log.
         var indepPosition = vertical ? AxisPosition.Left : AxisPosition.Bottom;
         Axis indepAxis = isTime
             ? new DateTimeAxis
@@ -186,27 +193,30 @@ public sealed class ChartPanelViewModel : ObservableObject
         indepAxis.StartPosition = vertical ? 1 : 0;
         indepAxis.EndPosition   = vertical ? 0 : 1;
         ApplyGrid(indepAxis);
-        model.Axes.Add(indepAxis);
+        newAxes.Add(indepAxis);
 
         var table = _data?.Table;
         var selected = Parameters.Where(p => p.IsSelected).ToList();
-        var valuePosition = vertical ? AxisPosition.Bottom : AxisPosition.Left;
+
+        // In vertical mode value scales sit on Top of the chart (borehole-log
+        // convention) — easier to read than stacked at the bottom. In
+        // horizontal mode they sit on the Left as usual.
+        var valuePosition = vertical ? AxisPosition.Top : AxisPosition.Left;
 
         if (table is null || selected.Count == 0)
         {
-            // Keep a placeholder value axis so an empty panel still looks like a chart.
+            // Placeholder so an empty panel still looks like a chart.
             var empty = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
-            if (vertical) empty.IsAxisVisible = false;
-            else ApplyGrid(empty);
-            model.Axes.Add(empty);
-            ChartModel = model;
+            ApplyGrid(empty);
+            newAxes.Add(empty);
+            SwapModelContents(newAxes, newSeries);
             return;
         }
 
         var xCol = isTime ? "REC_TIME" : "BOTTOM_DEPTH";
         if (!table.Columns.Contains(xCol))
         {
-            ChartModel = model;
+            SwapModelContents(newAxes, newSeries);
             return;
         }
 
@@ -215,14 +225,11 @@ public sealed class ChartPanelViewModel : ObservableObject
         for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
 
         // === Value axes ===
-        // Shared: one axis for everything. Separate: one auto-scaled, colour-matched
-        // axis per curve, stacked outward via PositionTier.
         if (!SeparateScales)
         {
             var shared = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
-            if (vertical) shared.IsAxisVisible = false;
-            else ApplyGrid(shared);
-            model.Axes.Add(shared);
+            ApplyGrid(shared);
+            newAxes.Add(shared);
         }
 
         int tier = 0;
@@ -248,21 +255,9 @@ public sealed class ChartPanelViewModel : ObservableObject
                     TicklineColor = colour,
                     PositionTier = tier,
                 };
-                if (vertical)
-                {
-                    // In vertical orientation the value axes would stack at the bottom
-                    // of the chart and take up most of the height. Hide them — the
-                    // legend already names each curve, and OxyPlot's tracker shows the
-                    // exact value on hover.
-                    axis.IsAxisVisible = false;
-                }
-                else if (tier == 0)
-                {
-                    // Grid only on the first tier in horizontal mode to avoid a clutter
-                    // of mismatched lines.
-                    ApplyGrid(axis);
-                }
-                model.Axes.Add(axis);
+                // Grid only on the first tier to avoid a clutter of mismatched lines.
+                if (tier == 0) ApplyGrid(axis);
+                newAxes.Add(axis);
                 tier++;
             }
             else
@@ -302,10 +297,23 @@ public sealed class ChartPanelViewModel : ObservableObject
                     : new DataPoint(indep, value));
             }
             if (series.Points.Count > 0)
-                model.Series.Add(series);
+                newSeries.Add(series);
         }
 
-        ChartModel = model;
+        SwapModelContents(newAxes, newSeries);
+    }
+
+    /// <summary>Replace the model's axes/series under its SyncRoot, then invalidate.</summary>
+    private void SwapModelContents(List<Axis> newAxes, List<OxyPlot.Series.Series> newSeries)
+    {
+        lock (ChartModel.SyncRoot)
+        {
+            ChartModel.Axes.Clear();
+            foreach (var a in newAxes) ChartModel.Axes.Add(a);
+            ChartModel.Series.Clear();
+            foreach (var s in newSeries) ChartModel.Series.Add(s);
+        }
+        ChartModel.InvalidatePlot(true);
     }
 
     private static void ApplyGrid(Axis axis)
