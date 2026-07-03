@@ -334,28 +334,40 @@ public sealed class ChartPanelViewModel : ObservableObject
             if (series.Points.Count > 0)
             {
                 newSeries.Add(series);
-                if (perAxis is not null) LimitZoom(perAxis, vMin, vMax);
+                if (perAxis is not null) ConstrainAxis(perAxis, vMin, vMax, ValuePad);
                 if (vMin < sharedMin) sharedMin = vMin;
                 if (vMax > sharedMax) sharedMax = vMax;
             }
         }
 
-        // Bound zoom on the independent axis and (in shared mode) the value axis.
-        LimitZoom(indepAxis, indepMin, indepMax);
+        // Bound navigation on the independent axis and (in shared mode) the value axis.
+        ConstrainAxis(indepAxis, indepMin, indepMax, IndepPad);
         if (!SeparateScales)
         {
             var shared = newAxes.OfType<LinearAxis>().FirstOrDefault(a => a.Key == "value");
-            if (shared is not null) LimitZoom(shared, sharedMin, sharedMax);
+            if (shared is not null) ConstrainAxis(shared, sharedMin, sharedMax, ValuePad);
         }
 
         SwapModelContents(newAxes, newSeries);
     }
 
-    /// <summary>Cap how far an axis can be zoomed in, based on its data span.</summary>
-    private static void LimitZoom(Axis axis, double lo, double hi)
+    private const double IndepPad = 0.01;   // 1 % margin around the time/depth data
+    private const double ValuePad = 0.05;   // 5 % margin around each curve's values
+
+    /// <summary>
+    /// Keep panning and zooming inside the data. AbsoluteMinimum/Maximum stop the
+    /// viewport from ever leaving the data (which is what made the curves vanish
+    /// when zooming the X axis), and MinimumRange caps zoom-in so the window can't
+    /// collapse to nothing.
+    /// </summary>
+    private static void ConstrainAxis(Axis axis, double lo, double hi, double padFraction)
     {
-        if (double.IsFinite(lo) && double.IsFinite(hi) && hi > lo)
-            axis.MinimumRange = (hi - lo) * MinRangeFactor;
+        if (!(double.IsFinite(lo) && double.IsFinite(hi) && hi > lo)) return;
+        var span = hi - lo;
+        var pad = span * padFraction;
+        axis.AbsoluteMinimum = lo - pad;
+        axis.AbsoluteMaximum = hi + pad;
+        axis.MinimumRange = span * MinRangeFactor;
     }
 
     /// <summary>Replace the model's axes/series under its SyncRoot, then invalidate.</summary>
