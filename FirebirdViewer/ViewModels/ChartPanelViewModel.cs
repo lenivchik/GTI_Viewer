@@ -234,7 +234,11 @@ public sealed class ChartPanelViewModel : ObservableObject
         if (table is null || selected.Count == 0)
         {
             // Placeholder so an empty panel still looks like a chart.
-            var empty = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
+            var empty = new LinearAxis
+            {
+                Position = valuePosition, Title = "Значение", Key = "value",
+                IsZoomEnabled = false, IsPanEnabled = false,
+            };
             ApplyGrid(empty);
             newAxes.Add(empty);
             SwapModelContents(newAxes, newSeries);
@@ -253,9 +257,17 @@ public sealed class ChartPanelViewModel : ObservableObject
         for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
 
         // === Value axes ===
+        // Value axes are locked (no zoom, no pan): each always shows its curve's
+        // full range. Only the independent time/depth axis responds to the mouse
+        // wheel. Otherwise wheel-zoom would move every curve's value window and
+        // the curves would slide out of view.
         if (!SeparateScales)
         {
-            var shared = new LinearAxis { Position = valuePosition, Title = "Значение", Key = "value" };
+            var shared = new LinearAxis
+            {
+                Position = valuePosition, Title = "Значение", Key = "value",
+                IsZoomEnabled = false, IsPanEnabled = false,
+            };
             ApplyGrid(shared);
             newAxes.Add(shared);
         }
@@ -283,6 +295,8 @@ public sealed class ChartPanelViewModel : ObservableObject
                     AxislineStyle = LineStyle.Solid,
                     TicklineColor = colour,
                     PositionTier = tier,
+                    IsZoomEnabled = false,
+                    IsPanEnabled = false,
                 };
                 // Grid only on the first tier to avoid a clutter of mismatched lines.
                 if (tier == 0) ApplyGrid(perAxis);
