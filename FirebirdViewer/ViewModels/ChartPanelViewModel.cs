@@ -349,6 +349,52 @@ public sealed class ChartPanelViewModel : ObservableObject
         }
 
         SwapModelContents(newAxes, newSeries);
+        ApplyPhysicalZoomLimit();
+    }
+
+    // ============================================================
+    // Physical max-zoom cap: at most 1 cm per second (time) / per metre (depth)
+    // ============================================================
+
+    // WPF measures in device-independent pixels: 96 per inch, 2.54 cm per inch.
+    private const double DipPerCm = 96.0 / 2.54;   // ≈ 37.795
+
+    private double _plotAreaWidthDip;
+    private double _plotAreaHeightDip;
+
+    /// <summary>Called by the View when the plot area is laid out or resized.</summary>
+    public void UpdatePlotAreaSize(double widthDip, double heightDip)
+    {
+        _plotAreaWidthDip = widthDip;
+        _plotAreaHeightDip = heightDip;
+        ApplyPhysicalZoomLimit();
+    }
+
+    /// <summary>
+    /// Caps zoom-in so the independent axis can never show more than 1 cm per
+    /// second (time) or 1 cm per metre (depth). Expressed as MinimumRange, which
+    /// is in axis data units — days for the time axis, metres for depth.
+    /// </summary>
+    private void ApplyPhysicalZoomLimit()
+    {
+        var indep = ChartModel.Axes.FirstOrDefault(a => a.Key == IndepAxisKey);
+        if (indep is null) return;
+
+        var vertical = Orientation == ChartOrientation.Vertical;
+        var lengthDip = vertical ? _plotAreaHeightDip : _plotAreaWidthDip;
+        if (lengthDip <= 0) return;   // not laid out yet — the View re-applies later
+
+        var lengthCm = lengthDip / DipPerCm;
+        // 1 cm per unit ⇒ smallest visible range = number of cm across the axis.
+        var minRange = XAxis == ChartXAxisMode.Time
+            ? lengthCm / 86400.0   // seconds → days
+            : lengthCm;            // metres
+
+        if (minRange > 0)
+        {
+            indep.MinimumRange = minRange;
+            ChartModel.InvalidatePlot(false);
+        }
     }
 
     private const double IndepPad = 0.01;   // 1 % margin around the time/depth data

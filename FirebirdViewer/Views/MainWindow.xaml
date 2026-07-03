@@ -312,6 +312,8 @@
                                                 <oxy:PlotView Model="{Binding ChartModel}"
                                                               Controller="{Binding PlotController}"
                                                               Background="White"
+                                                              Loaded="ChartPlot_SizeOrLoad"
+                                                              SizeChanged="ChartPlot_SizeChanged"
                                                               ToolTip="Shift + протяните мышью, чтобы посчитать среднее / мин / макс по участку"/>
                                             </DockPanel>
                                         </Border>

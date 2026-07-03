@@ -145,6 +145,41 @@ public partial class MainWindow : Window
         ApplyTwoDecimalFormat(e.Column, e.PropertyType);
     }
 
+    // ============================================================
+    // Chart plot area size → physical zoom limit (1 cm / sec, 1 cm / m)
+    // ============================================================
+
+    private void ChartPlot_SizeChanged(object sender, SizeChangedEventArgs e) => ReportPlotArea(sender);
+    private void ChartPlot_SizeOrLoad(object sender, RoutedEventArgs e)
+    {
+        // The plot area is only known after the first render; defer one dispatcher cycle.
+        var view = sender as OxyPlot.Wpf.PlotView;
+        Dispatcher.BeginInvoke(new System.Action(() => ReportPlotArea(view)),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private static void ReportPlotArea(object? sender)
+    {
+        if (sender is not OxyPlot.Wpf.PlotView view) return;
+        if (view.DataContext is not ChartPanelViewModel vm) return;
+
+        double w = 0, h = 0;
+        var area = view.ActualModel?.PlotArea;
+        if (area is { Width: > 0, Height: > 0 })
+        {
+            w = area.Value.Width;
+            h = area.Value.Height;
+        }
+        else
+        {
+            // Fallback before the first render: control size minus a rough margin.
+            w = System.Math.Max(0, view.ActualWidth  - 90);
+            h = System.Math.Max(0, view.ActualHeight - 60);
+        }
+
+        vm.UpdatePlotAreaSize(w, h);
+    }
+
     /// <summary>For float/double/decimal columns, render values with two decimal places.</summary>
     private static void ApplyTwoDecimalFormat(DataGridColumn column, System.Type propertyType)
     {
