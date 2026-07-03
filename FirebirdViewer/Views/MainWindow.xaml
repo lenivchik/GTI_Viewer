@@ -273,8 +273,46 @@
                                                     </DockPanel>
                                                 </Border>
 
+                                                <!-- Band-selection statistics (Shift + drag) -->
+                                                <Border DockPanel.Dock="Bottom" Padding="6"
+                                                        Background="#FBFCFE"
+                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
+                                                        Visibility="{Binding HasSelectionStats, Converter={StaticResource BoolToVisibility}}">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Content="Очистить"
+                                                                Padding="8,2" VerticalAlignment="Top"
+                                                                Command="{Binding ClearSelectionCommand}"/>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding SelectionRangeText}"
+                                                                       FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                            <ItemsControl ItemsSource="{Binding SelectionStats}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type vm:CurveStat}">
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                            <Border Width="12" Height="12" Margin="0,0,6,0"
+                                                                                    Background="{Binding Swatch}"/>
+                                                                            <TextBlock Text="{Binding Name}" Width="220" TextTrimming="CharacterEllipsis"/>
+                                                                            <TextBlock Text="сред: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{Binding AvgText}" Width="70" FontWeight="SemiBold"/>
+                                                                            <TextBlock Text="мин: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{Binding MinText}" Width="70"/>
+                                                                            <TextBlock Text="макс: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{Binding MaxText}" Width="70"/>
+                                                                            <TextBlock Text="точек: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{Binding Count}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+
                                                 <!-- Chart -->
-                                                <oxy:PlotView Model="{Binding ChartModel}" Background="White"/>
+                                                <oxy:PlotView Model="{Binding ChartModel}"
+                                                              Controller="{Binding PlotController}"
+                                                              Background="White"
+                                                              ToolTip="Shift + протяните мышью, чтобы посчитать среднее / мин / макс по участку"/>
                                             </DockPanel>
                                         </Border>
                                     </DataTemplate>
