@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
@@ -146,38 +147,23 @@ public partial class MainWindow : Window
     }
 
     // ============================================================
-    // Chart plot area size → physical zoom limit (1 cm / sec, 1 cm / m)
+    // Chart panels — one ChartPlotBinder per WpfPlot instance
     // ============================================================
 
-    private void ChartPlot_SizeChanged(object sender, SizeChangedEventArgs e) => ReportPlotArea(sender);
-    private void ChartPlot_SizeOrLoad(object sender, RoutedEventArgs e)
+    private readonly Dictionary<ScottPlot.WPF.WpfPlot, ChartPlotBinder> _chartBinders = new();
+
+    private void ChartPlot_Loaded(object sender, RoutedEventArgs e)
     {
-        // The plot area is only known after the first render; defer one dispatcher cycle.
-        var view = sender as OxyPlot.Wpf.PlotView;
-        Dispatcher.BeginInvoke(new System.Action(() => ReportPlotArea(view)),
-            System.Windows.Threading.DispatcherPriority.Loaded);
+        if (sender is not ScottPlot.WPF.WpfPlot plot) return;
+        if (plot.DataContext is not ChartPanelViewModel vm) return;
+        if (_chartBinders.ContainsKey(plot)) return;
+        _chartBinders[plot] = new ChartPlotBinder(plot, vm);
     }
 
-    private static void ReportPlotArea(object? sender)
+    private void ChartPlot_Unloaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not OxyPlot.Wpf.PlotView view) return;
-        if (view.DataContext is not ChartPanelViewModel vm) return;
-
-        double w = 0, h = 0;
-        var area = view.ActualModel?.PlotArea;
-        if (area is { Width: > 0, Height: > 0 })
-        {
-            w = area.Value.Width;
-            h = area.Value.Height;
-        }
-        else
-        {
-            // Fallback before the first render: control size minus a rough margin.
-            w = System.Math.Max(0, view.ActualWidth  - 90);
-            h = System.Math.Max(0, view.ActualHeight - 60);
-        }
-
-        vm.UpdatePlotAreaSize(w, h);
+        if (sender is not ScottPlot.WPF.WpfPlot plot) return;
+        if (_chartBinders.Remove(plot, out var binder)) binder.Dispose();
     }
 
     /// <summary>For float/double/decimal columns, render values with two decimal places.</summary>

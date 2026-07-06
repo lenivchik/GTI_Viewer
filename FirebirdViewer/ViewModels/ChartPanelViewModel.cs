@@ -7,11 +7,6 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Input;
 using FirebirdViewer.Commands;
-using FirebirdViewer.Models;
-using OxyPlot;
-using OxyPlot.Annotations;
-using OxyPlot.Axes;
-using OxyPlot.Series;
 
 namespace FirebirdViewer.ViewModels;
 
@@ -19,8 +14,8 @@ public enum ChartXAxisMode { Time, Depth }
 public enum ChartOrientation { Horizontal, Vertical }
 
 /// <summary>
-/// One chart panel on the Графики tab: its own parameter list, X-axis,
-/// orientation and rendered <see cref="OxyPlot.PlotModel"/>.
+/// One chart panel on the Графики tab. Holds all state and data but knows
+/// nothing about the charting library — the View's ChartPlotBinder renders it.
 /// </summary>
 public sealed class ChartPanelViewModel : ObservableObject
 {
@@ -28,40 +23,31 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         Title = $"График {number}";
         Parameters = new ObservableCollection<ChartParameterRef>();
-
-        // Stable PlotModel instance. We mutate Series/Axes in-place and call
-        // InvalidatePlot(true). Replacing the model would race with the
-        // PlotView attach/detach lifecycle when the ItemsPanel direction
-        // flips (yielding OxyPlot's "Plot model is already in use" error).
-        ChartModel = new PlotModel { PlotAreaBorderColor = OxyColors.LightGray };
-        ChartModel.Legends.Add(new OxyPlot.Legends.Legend
-        {
-            LegendPosition = OxyPlot.Legends.LegendPosition.RightTop,
-            LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
-            LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
-        });
-
         SelectionStats = new ObservableCollection<CurveStat>();
         ClearSelectionCommand = new RelayCommand(_ => ClearSelection(), _ => HasSelectionStats);
-
-        // Shift + drag selects a band along the independent axis and reports
-        // per-curve statistics. Everything else keeps OxyPlot's default input.
-        PlotController = new PlotController();
-        PlotController.BindMouseDown(OxyMouseButton.Left, OxyModifierKeys.Shift,
-            new DelegatePlotCommand<OxyMouseDownEventArgs>((view, controller, args) =>
-                controller.AddMouseManipulator(
-                    view,
-                    new BandStatsManipulator(view, this, Orientation == ChartOrientation.Vertical),
-                    args)));
     }
 
-    /// <summary>Controller wired to the PlotView; adds the Shift-drag stats manipulator.</summary>
-    public PlotController PlotController { get; }
+    // ---- Raised for the renderer ---------------------------------------------
+
+    /// <summary>Rebuild the whole plot (data, axes, orientation, scales changed).</summary>
+    public event Action? RenderRequested;
+    /// <summary>Remove the band-selection rectangle the renderer drew.</summary>
+    public event Action? SelectionCleared;
+
+    private void RequestRender()
+    {
+        BuildSeries();
+        RenderRequested?.Invoke();
+    }
+
+    // ---- Parameters -----------------------------------------------------------
 
     public ObservableCollection<ChartParameterRef> Parameters { get; }
 
     private string _title;
     public string Title { get => _title; set => SetProperty(ref _title, value); }
+
+    // ---- X axis: time or depth ------------------------------------------------
 
     private ChartXAxisMode _xAxis = ChartXAxisMode.Time;
     public ChartXAxisMode XAxis
@@ -73,21 +59,14 @@ public sealed class ChartPanelViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(XAxisIsTime));
                 OnPropertyChanged(nameof(XAxisIsDepth));
-                Rebuild();
+                RequestRender();
             }
         }
     }
+    public bool XAxisIsTime  { get => XAxis == ChartXAxisMode.Time;  set { if (value) XAxis = ChartXAxisMode.Time; } }
+    public bool XAxisIsDepth { get => XAxis == ChartXAxisMode.Depth; set { if (value) XAxis = ChartXAxisMode.Depth; } }
 
-    public bool XAxisIsTime
-    {
-        get => XAxis == ChartXAxisMode.Time;
-        set { if (value) XAxis = ChartXAxisMode.Time; }
-    }
-    public bool XAxisIsDepth
-    {
-        get => XAxis == ChartXAxisMode.Depth;
-        set { if (value) XAxis = ChartXAxisMode.Depth; }
-    }
+    // ---- Orientation ----------------------------------------------------------
 
     private ChartOrientation _orientation = ChartOrientation.Horizontal;
     public ChartOrientation Orientation
@@ -99,70 +78,37 @@ public sealed class ChartPanelViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(OrientationIsHorizontal));
                 OnPropertyChanged(nameof(OrientationIsVertical));
-                Rebuild();
+                RenderRequested?.Invoke();   // layout only — data unchanged
             }
         }
     }
+    public bool OrientationIsHorizontal { get => Orientation == ChartOrientation.Horizontal; set { if (value) Orientation = ChartOrientation.Horizontal; } }
+    public bool OrientationIsVertical   { get => Orientation == ChartOrientation.Vertical;   set { if (value) Orientation = ChartOrientation.Vertical; } }
 
-    public bool OrientationIsHorizontal
-    {
-        get => Orientation == ChartOrientation.Horizontal;
-        set { if (value) Orientation = ChartOrientation.Horizontal; }
-    }
-    public bool OrientationIsVertical
-    {
-        get => Orientation == ChartOrientation.Vertical;
-        set { if (value) Orientation = ChartOrientation.Vertical; }
-    }
+    // ---- Separate value scale per curve --------------------------------------
 
-    /// <summary>
-    /// When true, every curve gets its own auto-scaled value axis so a 0–10
-    /// parameter and a 0–100 parameter both fill the plot. When false, all
-    /// curves share a single value axis.
-    /// </summary>
     private bool _separateScales = true;
     public bool SeparateScales
     {
         get => _separateScales;
-        set { if (SetProperty(ref _separateScales, value)) Rebuild(); }
+        set { if (SetProperty(ref _separateScales, value)) RenderRequested?.Invoke(); }
     }
 
-    /// <summary>Stable plot model. Mutated in place by <see cref="Rebuild"/>; never replaced.</summary>
-    public PlotModel ChartModel { get; }
+    // ---- Data -----------------------------------------------------------------
 
     private DataView? _data;
+    private readonly List<ChartSeriesData> _series = new();
 
-    // Data windowing: each series keeps its full point set, but only the points
-    // near the visible range are handed to OxyPlot. Without this, zooming the
-    // independent axis pushes off-screen points to enormous screen coordinates
-    // and WPF drops the whole polyline (the curve vanishes, then reappears when
-    // zoomed back). See OnIndepAxisChanged.
-    private sealed class WindowedSeries
-    {
-        public LineSeries Series = null!;
-        public DataPoint[] Full = System.Array.Empty<DataPoint>();
-    }
-
-    private readonly List<WindowedSeries> _windowed = new();
-    private Axis? _windowAxis;
-    private bool _indepIsY;   // true in vertical orientation (independent axis is Y)
-
-    /// <summary>
-    /// Called by <see cref="MainViewModel"/> whenever the underlying data set
-    /// or the column list changes. Keeps Parameters in sync (preserving the
-    /// IsSelected state for parameters that survive) and triggers a rebuild.
-    /// </summary>
+    /// <summary>Called by <see cref="MainViewModel"/> whenever the data or column list changes.</summary>
     public void SetData(DataView? data, IEnumerable<ColumnVisibility> columns)
     {
         _data = data;
         SyncParameters(columns);
-        Rebuild();
+        RequestRender();
     }
 
     private void SyncParameters(IEnumerable<ColumnVisibility> columns)
     {
-        // Preserve the previously-selected names so the chart keeps its lines
-        // across data reloads.
         var selectedNames = new HashSet<string>(
             Parameters.Where(p => p.IsSelected).Select(p => p.Name),
             StringComparer.OrdinalIgnoreCase);
@@ -187,374 +133,62 @@ public sealed class ChartPanelViewModel : ObservableObject
     private void OnParameterChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ChartParameterRef.IsSelected))
-            Rebuild();
+            RequestRender();
     }
 
-    // Light grid colours shared by all axes.
-    private static readonly OxyColor MajorGrid = OxyColor.FromAColor(50, OxyColors.Gray);
-    private static readonly OxyColor MinorGrid = OxyColor.FromAColor(22, OxyColors.Gray);
-    internal const string IndepAxisKey = "indep";
-
-    // Deepest allowed zoom-in, as a fraction of an axis's data span. Zooming in
-    // past ~10 000× makes OxyPlot's coordinate transforms lose precision and the
-    // curves vanish, so we cap MinimumRange at span × this factor.
-    private const double MinRangeFactor = 1e-4;
-
-    private void Rebuild()
+    /// <summary>Build the numeric series for the currently selected parameters.</summary>
+    private void BuildSeries()
     {
-        var isTime   = XAxis == ChartXAxisMode.Time;
-        var vertical = Orientation == ChartOrientation.Vertical;
-
-        // Drop the previous windowing subscription; a fresh independent axis is
-        // created below and re-subscribed after the swap.
-        if (_windowAxis is not null) _windowAxis.AxisChanged -= OnIndepAxisChanged;
-        _windowAxis = null;
-        _windowed.Clear();
-        _indepIsY = vertical;
-
-        // Build the new content into local lists first, then swap into the
-        // stable PlotModel under its SyncRoot. This keeps the same model
-        // instance attached to the PlotView and avoids OxyPlot's
-        // "Plot model is already in use" race during orientation flips.
-        var newAxes = new List<Axis>();
-        var newSeries = new List<OxyPlot.Series.Series>();
-
-        // === Independent axis (time or depth) ===
-        // Horizontal: Bottom. Vertical: Left, reversed so the chart reads
-        // top-down like a borehole log.
-        var indepPosition = vertical ? AxisPosition.Left : AxisPosition.Bottom;
-        Axis indepAxis = isTime
-            ? new DateTimeAxis
-              {
-                  StringFormat = "dd.MM HH:mm",
-                  Title = "Время",
-                  IntervalLength = 80,
-              }
-            : new LinearAxis
-              {
-                  Title = "Глубина забоя, м",
-              };
-        indepAxis.Key = IndepAxisKey;
-        indepAxis.Position = indepPosition;
-        indepAxis.StartPosition = vertical ? 1 : 0;
-        indepAxis.EndPosition   = vertical ? 0 : 1;
-        ApplyGrid(indepAxis);
-        newAxes.Add(indepAxis);
-
+        _series.Clear();
         var table = _data?.Table;
-        var selected = Parameters.Where(p => p.IsSelected).ToList();
+        if (table is null) return;
 
-        // Track data extents so we can bound the zoom on each axis.
-        double indepMin = double.PositiveInfinity, indepMax = double.NegativeInfinity;
-        double sharedMin = double.PositiveInfinity, sharedMax = double.NegativeInfinity;
-
-        // In vertical mode value scales sit on Top of the chart (borehole-log
-        // convention) — easier to read than stacked at the bottom. In
-        // horizontal mode they sit on the Left as usual.
-        var valuePosition = vertical ? AxisPosition.Top : AxisPosition.Left;
-
-        if (table is null || selected.Count == 0)
-        {
-            // Placeholder so an empty panel still looks like a chart.
-            var empty = new LinearAxis
-            {
-                Position = valuePosition, Title = "Значение", Key = "value",
-                IsZoomEnabled = false, IsPanEnabled = false,
-            };
-            ApplyGrid(empty);
-            newAxes.Add(empty);
-            SwapModelContents(newAxes, newSeries);
-            return;
-        }
-
+        var isTime = XAxis == ChartXAxisMode.Time;
         var xCol = isTime ? "REC_TIME" : "BOTTOM_DEPTH";
-        if (!table.Columns.Contains(xCol))
-        {
-            SwapModelContents(newAxes, newSeries);
-            return;
-        }
+        if (!table.Columns.Contains(xCol)) return;
 
-        // Source rows are newest-first; reverse so the line draws chronologically.
-        var rowsChronological = new List<DataRow>(table.Rows.Count);
-        for (int i = table.Rows.Count - 1; i >= 0; i--) rowsChronological.Add(table.Rows[i]);
-
-        // === Value axes ===
-        // Value axes are locked (no zoom, no pan): each always shows its curve's
-        // full range. Only the independent time/depth axis responds to the mouse
-        // wheel. Otherwise wheel-zoom would move every curve's value window and
-        // the curves would slide out of view.
-        if (!SeparateScales)
-        {
-            var shared = new LinearAxis
-            {
-                Position = valuePosition, Title = "Значение", Key = "value",
-                IsZoomEnabled = false, IsPanEnabled = false,
-            };
-            ApplyGrid(shared);
-            newAxes.Add(shared);
-        }
-
-        int tier = 0;
-        foreach (var p in selected)
+        // Rows arrive newest-first; walk them in reverse for chronological order.
+        foreach (var p in Parameters.Where(p => p.IsSelected))
         {
             if (!table.Columns.Contains(p.Name)) continue;
 
-            var colour = ColorPalette.For(p.Name);
-            string valueKey;
-            LinearAxis? perAxis = null;
+            var indep = new List<double>(table.Rows.Count);
+            var vals  = new List<double>(table.Rows.Count);
 
-            if (SeparateScales)
+            for (int i = table.Rows.Count - 1; i >= 0; i--)
             {
-                valueKey = "v_" + p.Name;
-                perAxis = new LinearAxis
-                {
-                    Position = valuePosition,
-                    Key = valueKey,
-                    Title = p.DisplayName,
-                    TitleColor = colour,
-                    TextColor = colour,
-                    AxislineColor = colour,
-                    AxislineStyle = LineStyle.Solid,
-                    TicklineColor = colour,
-                    PositionTier = tier,
-                    IsZoomEnabled = false,
-                    IsPanEnabled = false,
-                };
-                // Grid only on the first tier to avoid a clutter of mismatched lines.
-                if (tier == 0) ApplyGrid(perAxis);
-                newAxes.Add(perAxis);
-                tier++;
-            }
-            else
-            {
-                valueKey = "value";
-            }
-
-            var series = new LineSeries
-            {
-                Title = p.DisplayName,
-                StrokeThickness = 1.5,
-                MarkerType = MarkerType.None,
-                Color = colour,
-                XAxisKey = vertical ? valueKey : IndepAxisKey,
-                YAxisKey = vertical ? IndepAxisKey : valueKey,
-            };
-            double vMin = double.PositiveInfinity, vMax = double.NegativeInfinity;
-            foreach (var row in rowsChronological)
-            {
+                var row = table.Rows[i];
                 var xRaw = row[xCol];
                 var yRaw = row[p.Name];
                 if (xRaw is DBNull || yRaw is DBNull) continue;
 
-                double indep;
+                double x;
                 if (isTime)
                 {
-                    if (xRaw is not DateTime dtv) continue;
-                    indep = DateTimeAxis.ToDouble(dtv);
+                    if (xRaw is not DateTime dt) continue;
+                    x = dt.ToOADate();   // ScottPlot's DateTime axis consumes OA dates
                 }
-                else if (!TryToDouble(xRaw, out indep)) continue;
+                else if (!TryToDouble(xRaw, out x)) continue;
 
-                if (!TryToDouble(yRaw, out var value)) continue;
+                if (!TryToDouble(yRaw, out var y)) continue;
 
-                if (indep < indepMin) indepMin = indep;
-                if (indep > indepMax) indepMax = indep;
-                if (value < vMin) vMin = value;
-                if (value > vMax) vMax = value;
-
-                // Horizontal: X = independent, Y = value.
-                // Vertical:   X = value,       Y = independent.
-                series.Points.Add(vertical
-                    ? new DataPoint(value, indep)
-                    : new DataPoint(indep, value));
+                indep.Add(x);
+                vals.Add(y);
             }
-            if (series.Points.Count > 0)
-            {
-                // Keep the full point set for windowing; hand OxyPlot only the
-                // visible slice (done by ApplyWindow below and on every zoom/pan).
-                _windowed.Add(new WindowedSeries { Series = series, Full = series.Points.ToArray() });
-                newSeries.Add(series);
-                if (perAxis is not null) ConstrainAxis(perAxis, vMin, vMax, ValuePad);
-                if (vMin < sharedMin) sharedMin = vMin;
-                if (vMax > sharedMax) sharedMax = vMax;
-            }
-        }
 
-        // Bound navigation on the independent axis and (in shared mode) the value axis.
-        ConstrainAxis(indepAxis, indepMin, indepMax, IndepPad);
-        if (!SeparateScales)
-        {
-            var shared = newAxes.OfType<LinearAxis>().FirstOrDefault(a => a.Key == "value");
-            if (shared is not null) ConstrainAxis(shared, sharedMin, sharedMax, ValuePad);
-        }
-
-        SwapModelContents(newAxes, newSeries);
-        ApplyPhysicalZoomLimit();
-
-        // Subscribe to zoom/pan on the new independent axis so we can re-window.
-        _windowAxis = ChartModel.Axes.FirstOrDefault(a => a.Key == IndepAxisKey);
-        if (_windowAxis is not null) _windowAxis.AxisChanged += OnIndepAxisChanged;
-    }
-
-    // ============================================================
-    // Data windowing — workaround for OxyPlot #2080 (line vanishes at high zoom)
-    // ============================================================
-
-    private bool _windowing;   // re-entrancy guard
-
-    private void OnIndepAxisChanged(object? sender, AxisChangedEventArgs e) => ApplyWindow();
-
-    /// <summary>
-    /// Trim every series to the points near the current visible range, keeping one
-    /// full window of margin on each side so the line still crosses the viewport.
-    /// This keeps every point OxyPlot renders close to the plot area — the far
-    /// off-screen coordinates that make the polyline disappear never occur.
-    /// </summary>
-    private void ApplyWindow()
-    {
-        if (_windowing || _windowAxis is null || _windowed.Count == 0) return;
-
-        var lo = _windowAxis.ActualMinimum;
-        var hi = _windowAxis.ActualMaximum;
-        if (!double.IsFinite(lo) || !double.IsFinite(hi) || hi <= lo) return;
-
-        var span = hi - lo;
-        var min = lo - span;   // one window of margin on each side
-        var max = hi + span;
-
-        _windowing = true;
-        try
-        {
-            lock (ChartModel.SyncRoot)
-            {
-                foreach (var w in _windowed)
-                {
-                    var pts = w.Series.Points;
-                    pts.Clear();
-                    foreach (var pt in w.Full)
-                    {
-                        var indep = _indepIsY ? pt.Y : pt.X;
-                        if (indep >= min && indep <= max) pts.Add(pt);
-                    }
-                }
-            }
-            // updateData:false — re-render the trimmed polylines without letting the
-            // locked value axes rescale to the window; each curve keeps its full range.
-            ChartModel.InvalidatePlot(false);
-        }
-        finally
-        {
-            _windowing = false;
+            if (vals.Count > 0)
+                _series.Add(new ChartSeriesData(p.DisplayName, ColorPalette.For(p.Name), indep.ToArray(), vals.ToArray()));
         }
     }
 
-    /// <summary>Min / average / max of every curve over [lo, hi] on the independent axis, from the full data.</summary>
-    internal IReadOnlyList<CurveStat> ComputeBandStats(double lo, double hi)
-    {
-        var list = new List<CurveStat>();
-        foreach (var w in _windowed)
-        {
-            double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0;
-            int n = 0;
-            foreach (var pt in w.Full)
-            {
-                var indep = _indepIsY ? pt.Y : pt.X;
-                if (indep < lo || indep > hi) continue;
-                var val = _indepIsY ? pt.X : pt.Y;
-                if (double.IsNaN(val)) continue;
-                if (val < min) min = val;
-                if (val > max) max = val;
-                sum += val;
-                n++;
-            }
-            if (n > 0) list.Add(CurveStat.Create(w.Series.Title, w.Series.ActualColor, min, sum / n, max, n));
-        }
-        return list;
-    }
+    /// <summary>Immutable snapshot the renderer draws from.</summary>
+    public ChartSnapshot GetSnapshot() => new(
+        XAxis == ChartXAxisMode.Time,
+        Orientation == ChartOrientation.Vertical,
+        SeparateScales,
+        _series.ToArray());
 
-    // ============================================================
-    // Physical max-zoom cap: at most 1 cm per second (time) / per metre (depth)
-    // ============================================================
-
-    // WPF measures in device-independent pixels: 96 per inch, 2.54 cm per inch.
-    private const double DipPerCm = 96.0 / 2.54;   // ≈ 37.795
-
-    private double _plotAreaWidthDip;
-    private double _plotAreaHeightDip;
-
-    /// <summary>Called by the View when the plot area is laid out or resized.</summary>
-    public void UpdatePlotAreaSize(double widthDip, double heightDip)
-    {
-        _plotAreaWidthDip = widthDip;
-        _plotAreaHeightDip = heightDip;
-        ApplyPhysicalZoomLimit();
-    }
-
-    /// <summary>
-    /// Caps zoom-in so the independent axis can never show more than 1 cm per
-    /// second (time) or 1 cm per metre (depth). Expressed as MinimumRange, which
-    /// is in axis data units — days for the time axis, metres for depth.
-    /// </summary>
-    private void ApplyPhysicalZoomLimit()
-    {
-        var indep = ChartModel.Axes.FirstOrDefault(a => a.Key == IndepAxisKey);
-        if (indep is null) return;
-
-        var vertical = Orientation == ChartOrientation.Vertical;
-        var lengthDip = vertical ? _plotAreaHeightDip : _plotAreaWidthDip;
-        if (lengthDip <= 0) return;   // not laid out yet — the View re-applies later
-
-        var lengthCm = lengthDip / DipPerCm;
-        // 1 cm per unit ⇒ smallest visible range = number of cm across the axis.
-        var minRange = XAxis == ChartXAxisMode.Time
-            ? lengthCm / 86400.0   // seconds → days
-            : lengthCm;            // metres
-
-        if (minRange > 0)
-        {
-            indep.MinimumRange = minRange;
-            ChartModel.InvalidatePlot(false);
-        }
-    }
-
-    private const double IndepPad = 0.01;   // 1 % margin around the time/depth data
-    private const double ValuePad = 0.05;   // 5 % margin around each curve's values
-
-    /// <summary>
-    /// Keep panning and zooming inside the data. AbsoluteMinimum/Maximum stop the
-    /// viewport from ever leaving the data (which is what made the curves vanish
-    /// when zooming the X axis), and MinimumRange caps zoom-in so the window can't
-    /// collapse to nothing.
-    /// </summary>
-    private static void ConstrainAxis(Axis axis, double lo, double hi, double padFraction)
-    {
-        if (!(double.IsFinite(lo) && double.IsFinite(hi) && hi > lo)) return;
-        var span = hi - lo;
-        var pad = span * padFraction;
-        axis.AbsoluteMinimum = lo - pad;
-        axis.AbsoluteMaximum = hi + pad;
-        axis.MinimumRange = span * MinRangeFactor;
-    }
-
-    /// <summary>Replace the model's axes/series under its SyncRoot, then invalidate.</summary>
-    private void SwapModelContents(List<Axis> newAxes, List<OxyPlot.Series.Series> newSeries)
-    {
-        lock (ChartModel.SyncRoot)
-        {
-            ChartModel.Axes.Clear();
-            foreach (var a in newAxes) ChartModel.Axes.Add(a);
-            ChartModel.Series.Clear();
-            foreach (var s in newSeries) ChartModel.Series.Add(s);
-            // Any prior band-selection rectangle refers to axes that were just
-            // replaced, so drop it along with its statistics.
-            ChartModel.Annotations.Clear();
-        }
-        ResetSelectionState();
-        ChartModel.InvalidatePlot(true);
-    }
-
-    // ============================================================
-    // Band selection (Shift + drag) → per-curve statistics
-    // ============================================================
+    // ---- Band-selection statistics -------------------------------------------
 
     public ObservableCollection<CurveStat> SelectionStats { get; }
     public bool HasSelectionStats => SelectionStats.Count > 0;
@@ -564,49 +198,49 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     public ICommand ClearSelectionCommand { get; }
 
-    private RectangleAnnotation? _selectionAnnotation;
-
-    /// <summary>Clear the stats list and range text without touching the model.</summary>
-    private void ResetSelectionState()
+    /// <summary>Compute min/avg/max for each curve over [lo, hi] on the independent axis.</summary>
+    public IReadOnlyList<CurveStat> ComputeBandStats(double lo, double hi)
     {
-        _selectionAnnotation = null;
-        if (SelectionStats.Count > 0) SelectionStats.Clear();
-        SelectionRangeText = null;
-        OnPropertyChanged(nameof(HasSelectionStats));
-    }
-
-    /// <summary>Remove the selection rectangle and its statistics.</summary>
-    public void ClearSelection()
-    {
-        lock (ChartModel.SyncRoot)
+        if (lo > hi) (lo, hi) = (hi, lo);
+        var list = new List<CurveStat>();
+        foreach (var s in _series)
         {
-            if (_selectionAnnotation is not null)
-                ChartModel.Annotations.Remove(_selectionAnnotation);
+            double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0;
+            int n = 0;
+            for (int i = 0; i < s.Independent.Length; i++)
+            {
+                var x = s.Independent[i];
+                if (x < lo || x > hi) continue;
+                var v = s.Values[i];
+                if (double.IsNaN(v)) continue;
+                if (v < min) min = v;
+                if (v > max) max = v;
+                sum += v;
+                n++;
+            }
+            if (n > 0) list.Add(CurveStat.Create(s.Name, s.Color, min, sum / n, max, n));
         }
-        ResetSelectionState();
-        ChartModel.InvalidatePlot(false);
+        return list;
     }
 
-    /// <summary>Called by the manipulator when the user finishes a Shift-drag.</summary>
-    internal void OnBandSelected(RectangleAnnotation annotation, IReadOnlyList<CurveStat> stats, string rangeText)
+    /// <summary>Called by the renderer when the user finishes a Shift-drag.</summary>
+    public void SetSelection(IReadOnlyList<CurveStat> stats, string rangeText)
     {
-        _selectionAnnotation = annotation;
         SelectionStats.Clear();
         foreach (var s in stats) SelectionStats.Add(s);
-        SelectionRangeText = stats.Count > 0
-            ? $"Участок: {rangeText}"
-            : $"Участок: {rangeText} — нет точек";
+        SelectionRangeText = stats.Count > 0 ? $"Участок: {rangeText}" : $"Участок: {rangeText} — нет точек";
         OnPropertyChanged(nameof(HasSelectionStats));
-        ChartModel.InvalidatePlot(false);
     }
 
-    private static void ApplyGrid(Axis axis)
+    public void ClearSelection()
     {
-        axis.MajorGridlineStyle = LineStyle.Solid;
-        axis.MajorGridlineColor = MajorGrid;
-        axis.MinorGridlineStyle = LineStyle.Dot;
-        axis.MinorGridlineColor = MinorGrid;
+        SelectionStats.Clear();
+        SelectionRangeText = null;
+        OnPropertyChanged(nameof(HasSelectionStats));
+        SelectionCleared?.Invoke();
     }
+
+    // ---- Helpers --------------------------------------------------------------
 
     private static bool TryToDouble(object value, out double result)
     {
@@ -626,6 +260,7 @@ public sealed class ChartPanelViewModel : ObservableObject
     }
 }
 
+/// <summary>One parameter check-box in a chart's parameter popup.</summary>
 public sealed class ChartParameterRef : ObservableObject
 {
     public string  Name        { get; init; } = "";
@@ -640,6 +275,12 @@ public sealed class ChartParameterRef : ObservableObject
     }
 }
 
+/// <summary>Numeric data for one plotted curve (independent axis + values, same length).</summary>
+public sealed record ChartSeriesData(string Name, ChartColor Color, double[] Independent, double[] Values);
+
+/// <summary>Everything the renderer needs for one repaint.</summary>
+public sealed record ChartSnapshot(bool IsTime, bool Vertical, bool SeparateScales, IReadOnlyList<ChartSeriesData> Series);
+
 /// <summary>Min / average / max of one curve over a selected band.</summary>
 public sealed class CurveStat
 {
@@ -650,10 +291,10 @@ public sealed class CurveStat
     public string MaxText { get; init; } = "";
     public int    Count   { get; init; }
 
-    public static CurveStat Create(string name, OxyColor colour, double min, double avg, double max, int count)
+    public static CurveStat Create(string name, ChartColor colour, double min, double avg, double max, int count)
     {
         var brush = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromArgb(colour.A, colour.R, colour.G, colour.B));
+            System.Windows.Media.Color.FromRgb(colour.R, colour.G, colour.B));
         brush.Freeze();
         return new CurveStat
         {
@@ -664,99 +305,5 @@ public sealed class CurveStat
             MaxText = max.ToString("0.##", CultureInfo.InvariantCulture),
             Count   = count,
         };
-    }
-}
-
-/// <summary>
-/// Shift-drag manipulator: paints a band across the independent axis and, on
-/// release, reports min/avg/max for every curve whose points fall inside it.
-/// </summary>
-public sealed class BandStatsManipulator : MouseManipulator
-{
-    private readonly ChartPanelViewModel _vm;
-    private readonly bool _vertical;
-    private Axis? _indep;
-    private RectangleAnnotation? _rect;
-    private double _start;
-
-    public BandStatsManipulator(IPlotView view, ChartPanelViewModel vm, bool vertical) : base(view)
-    {
-        _vm = vm;
-        _vertical = vertical;
-    }
-
-    public override void Started(OxyMouseEventArgs e)
-    {
-        base.Started(e);
-        var model = PlotView.ActualModel;
-        if (model is null) return;
-        _indep = model.Axes.FirstOrDefault(a => a.Key == ChartPanelViewModel.IndepAxisKey);
-        if (_indep is null) return;
-
-        _vm.ClearSelection();               // drop any previous band
-        _start = Indep(e);
-
-        _rect = new RectangleAnnotation
-        {
-            Fill = OxyColor.FromAColor(45, OxyColors.SteelBlue),
-            Stroke = OxyColors.SteelBlue,
-            StrokeThickness = 1,
-            Layer = AnnotationLayer.BelowSeries,
-        };
-        if (_vertical) _rect.YAxisKey = _indep.Key; else _rect.XAxisKey = _indep.Key;
-        UpdateRect(e);
-
-        lock (model.SyncRoot) model.Annotations.Add(_rect);
-        PlotView.InvalidatePlot(false);
-        e.Handled = true;
-    }
-
-    public override void Delta(OxyMouseEventArgs e)
-    {
-        base.Delta(e);
-        if (_rect is null) return;
-        UpdateRect(e);
-        PlotView.InvalidatePlot(false);
-        e.Handled = true;
-    }
-
-    public override void Completed(OxyMouseEventArgs e)
-    {
-        base.Completed(e);
-        var model = PlotView.ActualModel;
-        if (_rect is null || _indep is null || model is null) return;
-
-        UpdateRect(e);
-        var lo = Math.Min(_start, Indep(e));
-        var hi = Math.Max(_start, Indep(e));
-
-        // Compute from the VM's full data, not the (windowed) series points.
-        var stats = _vm.ComputeBandStats(lo, hi);
-
-        _vm.OnBandSelected(_rect, stats, FormatRange(lo, hi));
-        e.Handled = true;
-    }
-
-    private double Indep(OxyMouseEventArgs e)
-        => _indep!.InverseTransform(_vertical ? e.Position.Y : e.Position.X);
-
-    private void UpdateRect(OxyMouseEventArgs e)
-    {
-        if (_rect is null) return;
-        var lo = Math.Min(_start, Indep(e));
-        var hi = Math.Max(_start, Indep(e));
-        if (_vertical) { _rect.MinimumY = lo; _rect.MaximumY = hi; }
-        else           { _rect.MinimumX = lo; _rect.MaximumX = hi; }
-    }
-
-    private string FormatRange(double lo, double hi)
-    {
-        if (_indep is DateTimeAxis)
-        {
-            var a = DateTimeAxis.ToDateTime(lo);
-            var b = DateTimeAxis.ToDateTime(hi);
-            return $"{a:dd.MM HH:mm:ss} – {b:dd.MM HH:mm:ss}";
-        }
-        return $"глубина {lo.ToString("0.##", CultureInfo.InvariantCulture)} – {hi.ToString("0.##", CultureInfo.InvariantCulture)} м";
     }
 }
