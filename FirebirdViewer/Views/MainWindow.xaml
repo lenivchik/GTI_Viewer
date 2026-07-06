@@ -308,10 +308,24 @@
                                                     </DockPanel>
                                                 </Border>
 
+                                                <!-- Clicked-point value (double-click a vertex) -->
+                                                <Border DockPanel.Dock="Bottom" Padding="6"
+                                                        Background="#F4F8FF"
+                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
+                                                        Visibility="{Binding HasPointInfo, Converter={StaticResource BoolToVisibility}}">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Content="Скрыть"
+                                                                Padding="8,2" VerticalAlignment="Center"
+                                                                Command="{Binding ClearPointInfoCommand}"/>
+                                                        <TextBlock Text="{Binding PointInfoText}"
+                                                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                    </DockPanel>
+                                                </Border>
+
                                                 <!-- Chart -->
                                                 <sp:WpfPlot Loaded="ChartPlot_Loaded"
                                                             Unloaded="ChartPlot_Unloaded"
-                                                            ToolTip="Shift + протяните мышью, чтобы посчитать среднее / мин / макс по участку"/>
+                                                            ToolTip="Двойной клик по точке — значение; Shift + протяните мышью — среднее / мин / макс по участку"/>
                                             </DockPanel>
                                         </Border>
                                     </DataTemplate>

@@ -33,10 +33,17 @@ public sealed class ChartPlotBinder : IDisposable
     private bool _dragging;
     private double _dragStartIndep;
     private IPlottable? _bandRect;
+    private IPlottable? _pickMarker;
 
     // Axes we added via AddLeftAxis/AddBottomAxis. plot.Clear() removes plottables
     // but not axes, so we must remove these ourselves before each re-render.
     private readonly System.Collections.Generic.List<ScottPlot.IAxis> _addedAxes = new();
+
+    // Each plotted curve with its scatter and the concrete axes it was drawn
+    // against — used to hit-test double-clicks against every curve.
+    private sealed record PlottedCurve(
+        ScottPlot.Plottables.Scatter Scatter, ScottPlot.IXAxis X, ScottPlot.IYAxis Y, ChartSeriesData Data);
+    private readonly System.Collections.Generic.List<PlottedCurve> _plotted = new();
 
     public ChartPlotBinder(WpfPlot plot, ChartPanelViewModel vm)
     {
@@ -45,10 +52,12 @@ public sealed class ChartPlotBinder : IDisposable
 
         _vm.RenderRequested += Render;
         _vm.SelectionCleared += OnSelectionCleared;
+        _vm.PointInfoCleared += OnPointInfoCleared;
 
         _plot.PreviewMouseLeftButtonDown += OnMouseDown;
         _plot.PreviewMouseMove += OnMouseMove;
         _plot.PreviewMouseLeftButtonUp += OnMouseUp;
+        _plot.PreviewMouseDoubleClick += OnDoubleClick;
 
         Render();
     }
@@ -57,9 +66,11 @@ public sealed class ChartPlotBinder : IDisposable
     {
         _vm.RenderRequested -= Render;
         _vm.SelectionCleared -= OnSelectionCleared;
+        _vm.PointInfoCleared -= OnPointInfoCleared;
         _plot.PreviewMouseLeftButtonDown -= OnMouseDown;
         _plot.PreviewMouseMove -= OnMouseMove;
         _plot.PreviewMouseLeftButtonUp -= OnMouseUp;
+        _plot.PreviewMouseDoubleClick -= OnDoubleClick;
     }
 
     private static ScottPlot.Color ToScott(ChartColor c) => new(c.R, c.G, c.B);
@@ -79,6 +90,8 @@ public sealed class ChartPlotBinder : IDisposable
         _addedAxes.Clear();
         plot.Axes.Rules.Clear();
         _bandRect = null;
+        _pickMarker = null;
+        _plotted.Clear();
 
         // The independent (time/depth) axis: bottom when horizontal, left when vertical.
         var indepAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Left : plot.Axes.Bottom;
@@ -130,16 +143,21 @@ public sealed class ChartPlotBinder : IDisposable
             scatter.MarkerSize = 0;
             scatter.LegendText = s.Name;
 
+            ScottPlot.IXAxis xAxisUsed;
+            ScottPlot.IYAxis yAxisUsed;
             if (snap.Vertical)
             {
-                scatter.Axes.YAxis = plot.Axes.Left;                  // independent
-                scatter.Axes.XAxis = (ScottPlot.IXAxis)valueAxis;     // value
+                yAxisUsed = plot.Axes.Left;                  // independent
+                xAxisUsed = (ScottPlot.IXAxis)valueAxis;     // value
             }
             else
             {
-                scatter.Axes.XAxis = plot.Axes.Bottom;                // independent
-                scatter.Axes.YAxis = (ScottPlot.IYAxis)valueAxis;     // value
+                xAxisUsed = plot.Axes.Bottom;                // independent
+                yAxisUsed = (ScottPlot.IYAxis)valueAxis;     // value
             }
+            scatter.Axes.XAxis = xAxisUsed;
+            scatter.Axes.YAxis = yAxisUsed;
+            _plotted.Add(new PlottedCurve(scatter, xAxisUsed, yAxisUsed, s));
 
             index++;
         }
@@ -169,20 +187,23 @@ public sealed class ChartPlotBinder : IDisposable
 
         plot.ShowLegend();
         _plot.Refresh();
+
+        _vm.ClearPointInfo();   // last click's value no longer applies to the new plot
     }
 
     // ============================================================
-    // Shift + drag band selection → per-curve statistics
+    // Mouse: Shift-drag = band statistics; double-click = point value
     // ============================================================
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (Keyboard.Modifiers != ModifierKeys.Shift) return;
-
-        _dragging = true;
-        _dragStartIndep = IndepAt(e);
-        _plot.CaptureMouse();
-        e.Handled = true;   // suppress ScottPlot's own pan/zoom for this drag
+        if (Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            _dragging = true;
+            _dragStartIndep = IndepAt(e);
+            _plot.CaptureMouse();
+            e.Handled = true;   // suppress ScottPlot's own pan/zoom for this drag
+        }
     }
 
     private void OnMouseMove(object sender, MouseEventArgs e)
@@ -203,18 +224,88 @@ public sealed class ChartPlotBinder : IDisposable
         if (lo > hi) (lo, hi) = (hi, lo);
 
         DrawBand(lo, hi);
-
-        var stats = _vm.ComputeBandStats(lo, hi);
-        _vm.SetSelection(stats, FormatRange(lo, hi));
+        _vm.SetSelection(_vm.ComputeBandStats(lo, hi), FormatRange(lo, hi));
         e.Handled = true;
+    }
+
+    // ============================================================
+    // Double-click → nearest vertex value (ScottPlot's Data.GetNearest)
+    // ============================================================
+
+    private void OnDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;   // suppress ScottPlot's default double-click action
+        var mouse = MousePixel(e);
+        var plot = _plot.Plot;
+
+        double bestSq = double.MaxValue;
+        PlottedCurve? best = null;
+        int bestIndex = -1;
+
+        foreach (var c in _plotted)
+        {
+            // Mouse position in this curve's own axis space, then ask ScottPlot for
+            // the nearest actual data point (vertex) via the standard GetNearest.
+            var mouseCoord = plot.GetCoordinates(mouse, c.X, c.Y);
+            var nearest = c.Scatter.Data.GetNearest(mouseCoord, plot.LastRender);
+            if (!nearest.IsReal) continue;
+
+            // Disambiguate between curves by real pixel distance to the vertex.
+            var vpx = plot.GetPixel(new Coordinates(nearest.X, nearest.Y), c.X, c.Y);
+            var ddx = vpx.X - mouse.X;
+            var ddy = vpx.Y - mouse.Y;
+            var sq = ddx * ddx + ddy * ddy;
+            if (sq < bestSq) { bestSq = sq; best = c; bestIndex = nearest.Index; }
+        }
+
+        if (best is null || bestSq > 20 * 20) return;   // nothing close enough
+        ShowPoint(best, bestIndex, _vm.Orientation == ChartOrientation.Vertical);
+    }
+
+    private void ShowPoint(PlottedCurve c, int i, bool vertical)
+    {
+        var plot = _plot.Plot;
+        if (_pickMarker is not null) plot.Remove(_pickMarker);
+
+        var value = c.Data.Values[i];
+        var indep = c.Data.Independent[i];
+        var xv = vertical ? value : indep;
+        var yv = vertical ? indep : value;
+
+        var marker = plot.Add.Marker(xv, yv);
+        marker.Color = ToScott(c.Data.Color);
+        marker.Size = 11;
+        marker.Axes.XAxis = c.X;
+        marker.Axes.YAxis = c.Y;
+        _pickMarker = marker;
+        _plot.Refresh();
+
+        var indepStr = _vm.XAxis == ChartXAxisMode.Time
+            ? DateTime.FromOADate(indep).ToString("dd.MM.yyyy HH:mm:ss")
+            : $"{indep.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} м";
+        var valStr = value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        _vm.SetPointInfo($"{c.Data.Name}: {valStr}   ({indepStr})");
+    }
+
+    private void OnPointInfoCleared()
+    {
+        if (_pickMarker is null) return;
+        _plot.Plot.Remove(_pickMarker);
+        _pickMarker = null;
+        _plot.Refresh();
+    }
+
+    private Pixel MousePixel(MouseEventArgs e)
+    {
+        var p = e.GetPosition(_plot);
+        double scale = VisualTreeHelper.GetDpi(_plot).DpiScaleX;
+        return new Pixel((float)(p.X * scale), (float)(p.Y * scale));
     }
 
     /// <summary>Independent-axis coordinate under the mouse (X when horizontal, Y when vertical).</summary>
     private double IndepAt(MouseEventArgs e)
     {
-        var p = e.GetPosition(_plot);
-        double scale = VisualTreeHelper.GetDpi(_plot).DpiScaleX;
-        var coord = _plot.Plot.GetCoordinates(new Pixel((float)(p.X * scale), (float)(p.Y * scale)));
+        var coord = _plot.Plot.GetCoordinates(MousePixel(e));
         return _vm.Orientation == ChartOrientation.Vertical ? coord.Y : coord.X;
     }
 

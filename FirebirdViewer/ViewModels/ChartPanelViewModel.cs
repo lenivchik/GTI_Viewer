@@ -25,6 +25,7 @@ public sealed class ChartPanelViewModel : ObservableObject
         Parameters = new ObservableCollection<ChartParameterRef>();
         SelectionStats = new ObservableCollection<CurveStat>();
         ClearSelectionCommand = new RelayCommand(_ => ClearSelection(), _ => HasSelectionStats);
+        ClearPointInfoCommand = new RelayCommand(_ => ClearPointInfo(), _ => HasPointInfo);
     }
 
     // ---- Raised for the renderer ---------------------------------------------
@@ -33,6 +34,8 @@ public sealed class ChartPanelViewModel : ObservableObject
     public event Action? RenderRequested;
     /// <summary>Remove the band-selection rectangle the renderer drew.</summary>
     public event Action? SelectionCleared;
+    /// <summary>Remove the clicked-point highlight marker the renderer drew.</summary>
+    public event Action? PointInfoCleared;
 
     private void RequestRender()
     {
@@ -238,6 +241,29 @@ public sealed class ChartPanelViewModel : ObservableObject
         SelectionRangeText = null;
         OnPropertyChanged(nameof(HasSelectionStats));
         SelectionCleared?.Invoke();
+    }
+
+    // ---- Clicked-point value --------------------------------------------------
+
+    private string? _pointInfoText;
+    public string? PointInfoText { get => _pointInfoText; private set => SetProperty(ref _pointInfoText, value); }
+    public bool HasPointInfo => !string.IsNullOrEmpty(PointInfoText);
+
+    public ICommand ClearPointInfoCommand { get; }
+
+    /// <summary>Called by the renderer when the user clicks a curve point.</summary>
+    public void SetPointInfo(string text)
+    {
+        PointInfoText = text;
+        OnPropertyChanged(nameof(HasPointInfo));
+    }
+
+    public void ClearPointInfo()
+    {
+        if (PointInfoText is null) return;
+        PointInfoText = null;
+        OnPropertyChanged(nameof(HasPointInfo));
+        PointInfoCleared?.Invoke();
     }
 
     // ---- Helpers --------------------------------------------------------------
