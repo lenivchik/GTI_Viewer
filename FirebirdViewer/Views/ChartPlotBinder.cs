@@ -132,13 +132,13 @@ public sealed class ChartPlotBinder : IDisposable
 
             if (snap.Vertical)
             {
-                scatter.Axes.YAxis = plot.Axes.Left;   // independent
-                scatter.Axes.XAxis = valueAxis;        // value
+                scatter.Axes.YAxis = plot.Axes.Left;                  // independent
+                scatter.Axes.XAxis = (ScottPlot.IXAxis)valueAxis;     // value
             }
             else
             {
-                scatter.Axes.XAxis = plot.Axes.Bottom; // independent
-                scatter.Axes.YAxis = valueAxis;        // value
+                scatter.Axes.XAxis = plot.Axes.Bottom;                // independent
+                scatter.Axes.YAxis = (ScottPlot.IYAxis)valueAxis;     // value
             }
 
             index++;
@@ -149,14 +149,22 @@ public sealed class ChartPlotBinder : IDisposable
         // In vertical mode read top-down like a borehole log.
         if (snap.Vertical) plot.Axes.InvertY();
 
-        // Lock the value axes so the mouse wheel zooms only the independent axis;
-        // otherwise the curves slide out of their own value window while zooming.
+        // Lock each value axis to its autoscaled range so the mouse wheel zooms only
+        // the independent axis; otherwise the curves slide out of their value window.
         foreach (var axis in valueAxes)
         {
-            if (axis is ScottPlot.IYAxis yAxis)
-                plot.Axes.Rules.Add(new ScottPlot.AxisRules.LockedVertical(yAxis));
-            else if (axis is ScottPlot.IXAxis xAxis)
-                plot.Axes.Rules.Add(new ScottPlot.AxisRules.LockedHorizontal(xAxis));
+            if (snap.Vertical)
+            {
+                var xAxis = (ScottPlot.IXAxis)axis;
+                var lim = plot.Axes.GetLimits(xAxis, plot.Axes.Left);
+                plot.Axes.Rules.Add(new ScottPlot.AxisRules.LockedHorizontal(xAxis, lim.Left, lim.Right));
+            }
+            else
+            {
+                var yAxis = (ScottPlot.IYAxis)axis;
+                var lim = plot.Axes.GetLimits(plot.Axes.Bottom, yAxis);
+                plot.Axes.Rules.Add(new ScottPlot.AxisRules.LockedVertical(yAxis, lim.Bottom, lim.Top));
+            }
         }
 
         plot.ShowLegend();
