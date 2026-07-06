@@ -132,6 +132,21 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     private DataView? _data;
 
+    // Data windowing: each series keeps its full point set, but only the points
+    // near the visible range are handed to OxyPlot. Without this, zooming the
+    // independent axis pushes off-screen points to enormous screen coordinates
+    // and WPF drops the whole polyline (the curve vanishes, then reappears when
+    // zoomed back). See OnIndepAxisChanged.
+    private sealed class WindowedSeries
+    {
+        public LineSeries Series = null!;
+        public DataPoint[] Full = System.Array.Empty<DataPoint>();
+    }
+
+    private readonly List<WindowedSeries> _windowed = new();
+    private Axis? _windowAxis;
+    private bool _indepIsY;   // true in vertical orientation (independent axis is Y)
+
     /// <summary>
     /// Called by <see cref="MainViewModel"/> whenever the underlying data set
     /// or the column list changes. Keeps Parameters in sync (preserving the
@@ -189,6 +204,13 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         var isTime   = XAxis == ChartXAxisMode.Time;
         var vertical = Orientation == ChartOrientation.Vertical;
+
+        // Drop the previous windowing subscription; a fresh independent axis is
+        // created below and re-subscribed after the swap.
+        if (_windowAxis is not null) _windowAxis.AxisChanged -= OnIndepAxisChanged;
+        _windowAxis = null;
+        _windowed.Clear();
+        _indepIsY = vertical;
 
         // Build the new content into local lists first, then swap into the
         // stable PlotModel under its SyncRoot. This keeps the same model
@@ -347,6 +369,9 @@ public sealed class ChartPanelViewModel : ObservableObject
             }
             if (series.Points.Count > 0)
             {
+                // Keep the full point set for windowing; hand OxyPlot only the
+                // visible slice (done by ApplyWindow below and on every zoom/pan).
+                _windowed.Add(new WindowedSeries { Series = series, Full = series.Points.ToArray() });
                 newSeries.Add(series);
                 if (perAxis is not null) ConstrainAxis(perAxis, vMin, vMax, ValuePad);
                 if (vMin < sharedMin) sharedMin = vMin;
@@ -364,6 +389,86 @@ public sealed class ChartPanelViewModel : ObservableObject
 
         SwapModelContents(newAxes, newSeries);
         ApplyPhysicalZoomLimit();
+
+        // Subscribe to zoom/pan on the new independent axis so we can re-window.
+        _windowAxis = ChartModel.Axes.FirstOrDefault(a => a.Key == IndepAxisKey);
+        if (_windowAxis is not null) _windowAxis.AxisChanged += OnIndepAxisChanged;
+    }
+
+    // ============================================================
+    // Data windowing — workaround for OxyPlot #2080 (line vanishes at high zoom)
+    // ============================================================
+
+    private bool _windowing;   // re-entrancy guard
+
+    private void OnIndepAxisChanged(object? sender, AxisChangedEventArgs e) => ApplyWindow();
+
+    /// <summary>
+    /// Trim every series to the points near the current visible range, keeping one
+    /// full window of margin on each side so the line still crosses the viewport.
+    /// This keeps every point OxyPlot renders close to the plot area — the far
+    /// off-screen coordinates that make the polyline disappear never occur.
+    /// </summary>
+    private void ApplyWindow()
+    {
+        if (_windowing || _windowAxis is null || _windowed.Count == 0) return;
+
+        var lo = _windowAxis.ActualMinimum;
+        var hi = _windowAxis.ActualMaximum;
+        if (!double.IsFinite(lo) || !double.IsFinite(hi) || hi <= lo) return;
+
+        var span = hi - lo;
+        var min = lo - span;   // one window of margin on each side
+        var max = hi + span;
+
+        _windowing = true;
+        try
+        {
+            lock (ChartModel.SyncRoot)
+            {
+                foreach (var w in _windowed)
+                {
+                    var pts = w.Series.Points;
+                    pts.Clear();
+                    foreach (var pt in w.Full)
+                    {
+                        var indep = _indepIsY ? pt.Y : pt.X;
+                        if (indep >= min && indep <= max) pts.Add(pt);
+                    }
+                }
+            }
+            // updateData:false — re-render the trimmed polylines without letting the
+            // locked value axes rescale to the window; each curve keeps its full range.
+            ChartModel.InvalidatePlot(false);
+        }
+        finally
+        {
+            _windowing = false;
+        }
+    }
+
+    /// <summary>Min / average / max of every curve over [lo, hi] on the independent axis, from the full data.</summary>
+    internal IReadOnlyList<CurveStat> ComputeBandStats(double lo, double hi)
+    {
+        var list = new List<CurveStat>();
+        foreach (var w in _windowed)
+        {
+            double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0;
+            int n = 0;
+            foreach (var pt in w.Full)
+            {
+                var indep = _indepIsY ? pt.Y : pt.X;
+                if (indep < lo || indep > hi) continue;
+                var val = _indepIsY ? pt.X : pt.Y;
+                if (double.IsNaN(val)) continue;
+                if (val < min) min = val;
+                if (val > max) max = val;
+                sum += val;
+                n++;
+            }
+            if (n > 0) list.Add(CurveStat.Create(w.Series.Title, w.Series.ActualColor, min, sum / n, max, n));
+        }
+        return list;
     }
 
     // ============================================================
@@ -625,24 +730,8 @@ public sealed class BandStatsManipulator : MouseManipulator
         var lo = Math.Min(_start, Indep(e));
         var hi = Math.Max(_start, Indep(e));
 
-        var stats = new List<CurveStat>();
-        foreach (var s in model.Series.OfType<LineSeries>())
-        {
-            double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0;
-            int n = 0;
-            foreach (var pt in s.Points)
-            {
-                var indep = _vertical ? pt.Y : pt.X;
-                if (indep < lo || indep > hi) continue;
-                var val = _vertical ? pt.X : pt.Y;
-                if (double.IsNaN(val)) continue;
-                if (val < min) min = val;
-                if (val > max) max = val;
-                sum += val;
-                n++;
-            }
-            if (n > 0) stats.Add(CurveStat.Create(s.Title, s.ActualColor, min, sum / n, max, n));
-        }
+        // Compute from the VM's full data, not the (windowed) series points.
+        var stats = _vm.ComputeBandStats(lo, hi);
 
         _vm.OnBandSelected(_rect, stats, FormatRange(lo, hi));
         e.Handled = true;
