@@ -112,8 +112,10 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     private void SyncParameters(IEnumerable<ColumnVisibility> columns)
     {
-        var selectedNames = new HashSet<string>(
-            Parameters.Where(p => p.IsSelected).Select(p => p.Name),
+        // Preserve selection and per-curve appearance across data reloads, keyed by name.
+        var prior = Parameters.ToDictionary(
+            p => p.Name,
+            p => (p.IsSelected, p.Color, p.LineType),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var p in Parameters) p.PropertyChanged -= OnParameterChanged;
@@ -121,12 +123,16 @@ public sealed class ChartPanelViewModel : ObservableObject
 
         foreach (var col in columns)
         {
+            prior.TryGetValue(col.Name, out var was);
             var p = new ChartParameterRef
             {
                 Name        = col.Name,
                 DisplayName = col.DisplayName,
                 Description = col.Description,
-                IsSelected  = selectedNames.Contains(col.Name),
+                IsSelected  = was.IsSelected,
+                // Default colour is the deterministic palette pick; keep any prior choice.
+                Color       = was.Color == default ? ColorPalette.For(col.Name) : was.Color,
+                LineType    = was.LineType,
             };
             p.PropertyChanged += OnParameterChanged;
             Parameters.Add(p);
@@ -135,7 +141,9 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     private void OnParameterChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ChartParameterRef.IsSelected))
+        if (e.PropertyName is nameof(ChartParameterRef.IsSelected)
+                           or nameof(ChartParameterRef.Color)
+                           or nameof(ChartParameterRef.LineType))
             RequestRender();
     }
 
@@ -180,7 +188,7 @@ public sealed class ChartPanelViewModel : ObservableObject
             }
 
             if (vals.Count > 0)
-                _series.Add(new ChartSeriesData(p.DisplayName, ColorPalette.For(p.Name), indep.ToArray(), vals.ToArray()));
+                _series.Add(new ChartSeriesData(p.DisplayName, p.Color, p.LineType, indep.ToArray(), vals.ToArray()));
         }
     }
 
@@ -286,7 +294,13 @@ public sealed class ChartPanelViewModel : ObservableObject
     }
 }
 
-/// <summary>One parameter check-box in a chart's parameter popup.</summary>
+/// <summary>How a curve's line is drawn.</summary>
+public enum CurveLineType { Solid, Dashed, Dotted, Step }
+
+/// <summary>A selectable line-type with its Russian label (for the combo box).</summary>
+public sealed record LineTypeOption(CurveLineType Value, string Label);
+
+/// <summary>One parameter row in a chart's parameter popup, with its appearance.</summary>
 public sealed class ChartParameterRef : ObservableObject
 {
     public string  Name        { get; init; } = "";
@@ -299,10 +313,36 @@ public sealed class ChartParameterRef : ObservableObject
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
     }
+
+    private ChartColor _color;
+    public ChartColor Color
+    {
+        get => _color;
+        set => SetProperty(ref _color, value);
+    }
+
+    private CurveLineType _lineType = CurveLineType.Solid;
+    public CurveLineType LineType
+    {
+        get => _lineType;
+        set => SetProperty(ref _lineType, value);
+    }
+
+    /// <summary>Colours the user can pick from (bound by the XAML combo).</summary>
+    public static System.Collections.Generic.IReadOnlyList<ChartColor> ColorOptions => ColorPalette.Options;
+
+    /// <summary>Line types the user can pick from (bound by the XAML combo).</summary>
+    public static System.Collections.Generic.IReadOnlyList<LineTypeOption> LineTypeOptions { get; } = new[]
+    {
+        new LineTypeOption(CurveLineType.Solid,  "Сплошная"),
+        new LineTypeOption(CurveLineType.Dashed, "Пунктир"),
+        new LineTypeOption(CurveLineType.Dotted, "Точки"),
+        new LineTypeOption(CurveLineType.Step,   "Ступенчатая"),
+    };
 }
 
 /// <summary>Numeric data for one plotted curve (independent axis + values, same length).</summary>
-public sealed record ChartSeriesData(string Name, ChartColor Color, double[] Independent, double[] Values);
+public sealed record ChartSeriesData(string Name, ChartColor Color, CurveLineType LineType, double[] Independent, double[] Values);
 
 /// <summary>Everything the renderer needs for one repaint.</summary>
 public sealed record ChartSnapshot(bool IsTime, bool Vertical, bool SeparateScales, IReadOnlyList<ChartSeriesData> Series);

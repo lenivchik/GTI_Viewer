@@ -75,6 +75,20 @@ public sealed class ChartPlotBinder : IDisposable
 
     private static ScottPlot.Color ToScott(ChartColor c) => new(c.R, c.G, c.B);
 
+    /// <summary>Maps our CurveLineType onto ScottPlot's line pattern + connect style.</summary>
+    private static void ApplyLineType(ScottPlot.Plottables.Scatter scatter, CurveLineType type)
+    {
+        scatter.LinePattern = type switch
+        {
+            CurveLineType.Dashed => ScottPlot.LinePattern.Dashed,
+            CurveLineType.Dotted => ScottPlot.LinePattern.Dotted,
+            _                    => ScottPlot.LinePattern.Solid,
+        };
+        scatter.ConnectStyle = type == CurveLineType.Step
+            ? ScottPlot.ConnectStyle.StepHorizontal
+            : ScottPlot.ConnectStyle.Straight;
+    }
+
     // ============================================================
     // Rendering
     // ============================================================
@@ -142,6 +156,7 @@ public sealed class ChartPlotBinder : IDisposable
             scatter.LineWidth = 1.5f;
             scatter.MarkerSize = 0;
             scatter.LegendText = s.Name;
+            ApplyLineType(scatter, s.LineType);
 
             ScottPlot.IXAxis xAxisUsed;
             ScottPlot.IYAxis yAxisUsed;

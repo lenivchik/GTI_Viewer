@@ -1,14 +1,27 @@
 namespace FirebirdViewer.ViewModels;
 
 /// <summary>Library-agnostic RGB colour (0–255 per channel).</summary>
-public readonly record struct ChartColor(byte R, byte G, byte B);
+public readonly record struct ChartColor(byte R, byte G, byte B)
+{
+    /// <summary>A frozen WPF brush for showing this colour as a swatch in the UI.</summary>
+    public System.Windows.Media.Brush Brush
+    {
+        get
+        {
+            var b = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(R, G, B));
+            b.Freeze();
+            return b;
+        }
+    }
+}
 
 /// <summary>
 /// Deterministic colour-per-parameter so that adding / removing a series
 /// never reshuffles the other curves' colours. Returns a plain RGB triple so
 /// no charting library type leaks into the view-model layer.
 /// </summary>
-internal static class ColorPalette
+public static class ColorPalette
 {
     private static readonly ChartColor[] Palette =
     {
@@ -29,6 +42,9 @@ internal static class ColorPalette
         new(0xA0, 0x52, 0x2D), // sienna
     };
 
+    /// <summary>The selectable colours (same set used for the automatic assignment).</summary>
+    public static System.Collections.Generic.IReadOnlyList<ChartColor> Options => Palette;
+
     /// <summary>Picks a stable colour for <paramref name="key"/> using a string hash mod palette length.</summary>
     public static ChartColor For(string key)
     {
@@ -43,3 +59,4 @@ internal static class ColorPalette
         return Palette[(int)(hash % (uint)Palette.Length)];
     }
 }
+
