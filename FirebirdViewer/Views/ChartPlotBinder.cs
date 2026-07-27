@@ -34,6 +34,7 @@ public sealed class ChartPlotBinder : IDisposable
     private double _dragStartIndep;
     private IPlottable? _bandRect;
     private IPlottable? _pickMarker;
+    private IPlottable? _pickLabel;
 
     // Axes we added via AddLeftAxis/AddBottomAxis. plot.Clear() removes plottables
     // but not axes, so we must remove these ourselves before each re-render.
@@ -52,7 +53,6 @@ public sealed class ChartPlotBinder : IDisposable
 
         _vm.RenderRequested += Render;
         _vm.SelectionCleared += OnSelectionCleared;
-        _vm.PointInfoCleared += OnPointInfoCleared;
 
         _plot.PreviewMouseLeftButtonDown += OnMouseDown;
         _plot.PreviewMouseMove += OnMouseMove;
@@ -66,7 +66,6 @@ public sealed class ChartPlotBinder : IDisposable
     {
         _vm.RenderRequested -= Render;
         _vm.SelectionCleared -= OnSelectionCleared;
-        _vm.PointInfoCleared -= OnPointInfoCleared;
         _plot.PreviewMouseLeftButtonDown -= OnMouseDown;
         _plot.PreviewMouseMove -= OnMouseMove;
         _plot.PreviewMouseLeftButtonUp -= OnMouseUp;
@@ -105,6 +104,7 @@ public sealed class ChartPlotBinder : IDisposable
         plot.Axes.Rules.Clear();
         _bandRect = null;
         _pickMarker = null;
+        _pickLabel = null;
         _plotted.Clear();
 
         // The independent (time/depth) axis: bottom when horizontal, left when vertical.
@@ -153,7 +153,7 @@ public sealed class ChartPlotBinder : IDisposable
 
             var scatter = plot.Add.Scatter(xs, ys);
             scatter.Color = colour;
-            scatter.LineWidth = 1.5f;
+            scatter.LineWidth = (float)s.LineWidth;
             scatter.MarkerSize = 0;
             scatter.LegendText = s.Name;
             ApplyLineType(scatter, s.LineType);
@@ -200,10 +200,10 @@ public sealed class ChartPlotBinder : IDisposable
             }
         }
 
-        plot.ShowLegend();
+        // The built-in legend is hidden: the window shows a clickable WPF legend
+        // strip above the plot instead, where colour / line type / thickness are edited.
+        plot.HideLegend();
         _plot.Refresh();
-
-        _vm.ClearPointInfo();   // last click's value no longer applies to the new plot
     }
 
     // ============================================================
@@ -273,41 +273,63 @@ public sealed class ChartPlotBinder : IDisposable
             if (sq < bestSq) { bestSq = sq; best = c; bestIndex = nearest.Index; }
         }
 
-        if (best is null || bestSq > 20 * 20) return;   // nothing close enough
+        if (best is null || bestSq > 20 * 20)
+        {
+            ClearPick();    // double-clicking empty space dismisses the label
+            return;
+        }
         ShowPoint(best, bestIndex, _vm.Orientation == ChartOrientation.Vertical);
     }
 
     private void ShowPoint(PlottedCurve c, int i, bool vertical)
     {
         var plot = _plot.Plot;
-        if (_pickMarker is not null) plot.Remove(_pickMarker);
+        ClearPick(refresh: false);
 
         var value = c.Data.Values[i];
         var indep = c.Data.Independent[i];
         var xv = vertical ? value : indep;
         var yv = vertical ? indep : value;
+        var colour = ToScott(c.Data.Color);
 
         var marker = plot.Add.Marker(xv, yv);
-        marker.Color = ToScott(c.Data.Color);
+        marker.Color = colour;
         marker.Size = 11;
         marker.Axes.XAxis = c.X;
         marker.Axes.YAxis = c.Y;
         _pickMarker = marker;
-        _plot.Refresh();
 
+        // Value label pinned next to the point itself.
         var indepStr = _vm.XAxis == ChartXAxisMode.Time
             ? DateTime.FromOADate(indep).ToString("dd.MM.yyyy HH:mm:ss")
             : $"{indep.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} м";
         var valStr = value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        _vm.SetPointInfo($"{c.Data.Name}: {valStr}   ({indepStr})");
+
+        var label = plot.Add.Text($"{c.Data.Name}\n{valStr}\n{indepStr}", xv, yv);
+        label.Axes.XAxis = c.X;
+        label.Axes.YAxis = c.Y;
+        label.LabelFontSize = 12;
+        label.LabelBold = true;
+        label.LabelFontColor = ScottPlot.Colors.Black;
+        label.LabelBackgroundColor = ScottPlot.Colors.White.WithAlpha(230);
+        label.LabelBorderColor = colour;
+        label.LabelBorderWidth = 1;
+        label.LabelPadding = 4;
+        label.LabelAlignment = ScottPlot.Alignment.LowerLeft;
+        label.OffsetX = 8;
+        label.OffsetY = -8;
+        _pickLabel = label;
+
+        _plot.Refresh();
     }
 
-    private void OnPointInfoCleared()
+    /// <summary>Remove the clicked-point marker and its value label.</summary>
+    private void ClearPick(bool refresh = true)
     {
-        if (_pickMarker is null) return;
-        _plot.Plot.Remove(_pickMarker);
-        _pickMarker = null;
-        _plot.Refresh();
+        var plot = _plot.Plot;
+        if (_pickMarker is not null) { plot.Remove(_pickMarker); _pickMarker = null; }
+        if (_pickLabel is not null)  { plot.Remove(_pickLabel);  _pickLabel = null; }
+        if (refresh) _plot.Refresh();
     }
 
     private Pixel MousePixel(MouseEventArgs e)

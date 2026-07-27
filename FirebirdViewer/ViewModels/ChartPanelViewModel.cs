@@ -23,9 +23,9 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         Title = $"График {number}";
         Parameters = new ObservableCollection<ChartParameterRef>();
+        LegendItems = new ObservableCollection<ChartParameterRef>();
         SelectionStats = new ObservableCollection<CurveStat>();
         ClearSelectionCommand = new RelayCommand(_ => ClearSelection(), _ => HasSelectionStats);
-        ClearPointInfoCommand = new RelayCommand(_ => ClearPointInfo(), _ => HasPointInfo);
     }
 
     // ---- Raised for the renderer ---------------------------------------------
@@ -34,18 +34,26 @@ public sealed class ChartPanelViewModel : ObservableObject
     public event Action? RenderRequested;
     /// <summary>Remove the band-selection rectangle the renderer drew.</summary>
     public event Action? SelectionCleared;
-    /// <summary>Remove the clicked-point highlight marker the renderer drew.</summary>
-    public event Action? PointInfoCleared;
 
     private void RequestRender()
     {
         BuildSeries();
+        RebuildLegend();
         RenderRequested?.Invoke();
     }
 
     // ---- Parameters -----------------------------------------------------------
 
     public ObservableCollection<ChartParameterRef> Parameters { get; }
+
+    /// <summary>The currently plotted parameters — drives the clickable legend strip.</summary>
+    public ObservableCollection<ChartParameterRef> LegendItems { get; }
+
+    private void RebuildLegend()
+    {
+        LegendItems.Clear();
+        foreach (var p in Parameters.Where(p => p.IsSelected)) LegendItems.Add(p);
+    }
 
     private string _title;
     public string Title { get => _title; set => SetProperty(ref _title, value); }
@@ -115,7 +123,7 @@ public sealed class ChartPanelViewModel : ObservableObject
         // Preserve selection and per-curve appearance across data reloads, keyed by name.
         var prior = Parameters.ToDictionary(
             p => p.Name,
-            p => (p.IsSelected, p.Color, p.LineType),
+            p => (p.IsSelected, p.Color, p.LineType, p.LineWidth),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var p in Parameters) p.PropertyChanged -= OnParameterChanged;
@@ -133,6 +141,7 @@ public sealed class ChartPanelViewModel : ObservableObject
                 // Default colour is the deterministic palette pick; keep any prior choice.
                 Color       = was.Color == default ? ColorPalette.For(col.Name) : was.Color,
                 LineType    = was.LineType,
+                LineWidth   = was.LineWidth <= 0 ? 1.5 : was.LineWidth,
             };
             p.PropertyChanged += OnParameterChanged;
             Parameters.Add(p);
@@ -143,7 +152,8 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         if (e.PropertyName is nameof(ChartParameterRef.IsSelected)
                            or nameof(ChartParameterRef.Color)
-                           or nameof(ChartParameterRef.LineType))
+                           or nameof(ChartParameterRef.LineType)
+                           or nameof(ChartParameterRef.LineWidth))
             RequestRender();
     }
 
@@ -188,7 +198,7 @@ public sealed class ChartPanelViewModel : ObservableObject
             }
 
             if (vals.Count > 0)
-                _series.Add(new ChartSeriesData(p.DisplayName, p.Color, p.LineType, indep.ToArray(), vals.ToArray()));
+                _series.Add(new ChartSeriesData(p.DisplayName, p.Color, p.LineType, p.LineWidth, indep.ToArray(), vals.ToArray()));
         }
     }
 
@@ -251,29 +261,6 @@ public sealed class ChartPanelViewModel : ObservableObject
         SelectionCleared?.Invoke();
     }
 
-    // ---- Clicked-point value --------------------------------------------------
-
-    private string? _pointInfoText;
-    public string? PointInfoText { get => _pointInfoText; private set => SetProperty(ref _pointInfoText, value); }
-    public bool HasPointInfo => !string.IsNullOrEmpty(PointInfoText);
-
-    public ICommand ClearPointInfoCommand { get; }
-
-    /// <summary>Called by the renderer when the user clicks a curve point.</summary>
-    public void SetPointInfo(string text)
-    {
-        PointInfoText = text;
-        OnPropertyChanged(nameof(HasPointInfo));
-    }
-
-    public void ClearPointInfo()
-    {
-        if (PointInfoText is null) return;
-        PointInfoText = null;
-        OnPropertyChanged(nameof(HasPointInfo));
-        PointInfoCleared?.Invoke();
-    }
-
     // ---- Helpers --------------------------------------------------------------
 
     private static bool TryToDouble(object value, out double result)
@@ -325,10 +312,25 @@ public sealed class ChartParameterRef : ObservableObject
     public CurveLineType LineType
     {
         get => _lineType;
-        set => SetProperty(ref _lineType, value);
+        set { if (SetProperty(ref _lineType, value)) OnPropertyChanged(nameof(DashArray)); }
     }
 
-    /// <summary>Colours the user can pick from (bound by the XAML combo).</summary>
+    private double _lineWidth = 1.5;
+    public double LineWidth
+    {
+        get => _lineWidth;
+        set => SetProperty(ref _lineWidth, value);
+    }
+
+    /// <summary>A short line preview for the legend strip: dash pattern + thickness + colour.</summary>
+    public System.Windows.Media.DoubleCollection? DashArray => LineType switch
+    {
+        CurveLineType.Dashed => new System.Windows.Media.DoubleCollection(new double[] { 4, 2 }),
+        CurveLineType.Dotted => new System.Windows.Media.DoubleCollection(new double[] { 1, 2 }),
+        _ => null,
+    };
+
+    /// <summary>Colours the user can pick from (bound by the XAML picker).</summary>
     public static System.Collections.Generic.IReadOnlyList<ChartColor> ColorOptions => ColorPalette.Options;
 
     /// <summary>Line types the user can pick from (bound by the XAML combo).</summary>
@@ -339,10 +341,15 @@ public sealed class ChartParameterRef : ObservableObject
         new LineTypeOption(CurveLineType.Dotted, "Точки"),
         new LineTypeOption(CurveLineType.Step,   "Ступенчатая"),
     };
+
+    /// <summary>Line thicknesses the user can pick from (bound by the XAML combo).</summary>
+    public static System.Collections.Generic.IReadOnlyList<double> LineWidthOptions { get; } =
+        new[] { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0 };
 }
 
 /// <summary>Numeric data for one plotted curve (independent axis + values, same length).</summary>
-public sealed record ChartSeriesData(string Name, ChartColor Color, CurveLineType LineType, double[] Independent, double[] Values);
+public sealed record ChartSeriesData(
+    string Name, ChartColor Color, CurveLineType LineType, double LineWidth, double[] Independent, double[] Values);
 
 /// <summary>Everything the renderer needs for one repaint.</summary>
 public sealed record ChartSnapshot(bool IsTime, bool Vertical, bool SeparateScales, IReadOnlyList<ChartSeriesData> Series);

@@ -244,7 +244,7 @@
                                                                         BorderThickness="1"
                                                                         Padding="4">
                                                                     <ListBox ItemsSource="{Binding Parameters}"
-                                                                             MinWidth="380" MaxHeight="440"
+                                                                             MinWidth="260" MaxHeight="440"
                                                                              BorderThickness="0"
                                                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                                                         <ListBox.ItemContainerStyle>
@@ -256,41 +256,9 @@
                                                                         </ListBox.ItemContainerStyle>
                                                                         <ListBox.ItemTemplate>
                                                                             <DataTemplate DataType="{x:Type vm:ChartParameterRef}">
-                                                                                <Grid>
-                                                                                    <Grid.ColumnDefinitions>
-                                                                                        <ColumnDefinition Width="*"/>
-                                                                                        <ColumnDefinition Width="Auto"/>
-                                                                                        <ColumnDefinition Width="Auto"/>
-                                                                                    </Grid.ColumnDefinitions>
-
-                                                                                    <CheckBox Grid.Column="0"
-                                                                                              VerticalAlignment="Center"
-                                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                                              Content="{Binding DisplayName}"
-                                                                                              ToolTip="{Binding Description}"/>
-
-                                                                                    <!-- Colour picker -->
-                                                                                    <ComboBox Grid.Column="1" Width="52" Margin="6,0,0,0"
-                                                                                              VerticalAlignment="Center"
-                                                                                              ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.ColorOptions}}"
-                                                                                              SelectedItem="{Binding Color, Mode=TwoWay}"
-                                                                                              ToolTip="Цвет кривой">
-                                                                                        <ComboBox.ItemTemplate>
-                                                                                            <DataTemplate>
-                                                                                                <Border Width="28" Height="12" Background="{Binding Brush}"/>
-                                                                                            </DataTemplate>
-                                                                                        </ComboBox.ItemTemplate>
-                                                                                    </ComboBox>
-
-                                                                                    <!-- Line-type picker -->
-                                                                                    <ComboBox Grid.Column="2" Width="104" Margin="6,0,0,0"
-                                                                                              VerticalAlignment="Center"
-                                                                                              ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.LineTypeOptions}}"
-                                                                                              DisplayMemberPath="Label"
-                                                                                              SelectedValuePath="Value"
-                                                                                              SelectedValue="{Binding LineType, Mode=TwoWay}"
-                                                                                              ToolTip="Тип линии"/>
-                                                                                </Grid>
+                                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                                          Content="{Binding DisplayName}"
+                                                                                          ToolTip="{Binding Description}"/>
                                                                             </DataTemplate>
                                                                         </ListBox.ItemTemplate>
                                                                     </ListBox>
@@ -340,18 +308,94 @@
                                                     </DockPanel>
                                                 </Border>
 
-                                                <!-- Clicked-point value (double-click a vertex) -->
-                                                <Border DockPanel.Dock="Bottom" Padding="6"
-                                                        Background="#F4F8FF"
-                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
-                                                        Visibility="{Binding HasPointInfo, Converter={StaticResource BoolToVisibility}}">
-                                                    <DockPanel>
-                                                        <Button DockPanel.Dock="Right" Content="Скрыть"
-                                                                Padding="8,2" VerticalAlignment="Center"
-                                                                Command="{Binding ClearPointInfoCommand}"/>
-                                                        <TextBlock Text="{Binding PointInfoText}"
-                                                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                    </DockPanel>
+                                                <!-- Clickable legend: click a curve to set its colour / line type / thickness.
+                                                     Docked at the top so it stays above the plot in both orientations. -->
+                                                <Border DockPanel.Dock="Top" Padding="6,3"
+                                                        Background="White"
+                                                        BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
+                                                    <ItemsControl ItemsSource="{Binding LegendItems}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel Orientation="Horizontal"/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:ChartParameterRef}">
+                                                                <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                                                                    <ToggleButton x:Name="LegendButton"
+                                                                                  Padding="4,2"
+                                                                                  Background="Transparent"
+                                                                                  BorderThickness="0"
+                                                                                  Cursor="Hand"
+                                                                                  ToolTip="Нажмите, чтобы настроить вид кривой">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <!-- Line sample: colour + dash pattern + thickness -->
+                                                                            <Line X1="0" Y1="6" X2="26" Y2="6"
+                                                                                  VerticalAlignment="Center" Margin="0,0,5,0"
+                                                                                  Stroke="{Binding Color.Brush}"
+                                                                                  StrokeThickness="{Binding LineWidth}"
+                                                                                  StrokeDashArray="{Binding DashArray}"/>
+                                                                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                    </ToggleButton>
+
+                                                                    <Popup IsOpen="{Binding IsChecked, ElementName=LegendButton, Mode=TwoWay}"
+                                                                           PlacementTarget="{Binding ElementName=LegendButton}"
+                                                                           Placement="Bottom"
+                                                                           StaysOpen="False"
+                                                                           AllowsTransparency="True">
+                                                                        <Border Background="White"
+                                                                                BorderBrush="{StaticResource PanelBorder}"
+                                                                                BorderThickness="1" Padding="8">
+                                                                            <StackPanel>
+                                                                                <TextBlock Text="{Binding DisplayName}"
+                                                                                           FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+                                                                                <TextBlock Text="Цвет" Margin="0,0,0,3"
+                                                                                           Foreground="{StaticResource MutedForeground}"/>
+                                                                                <ListBox ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.ColorOptions}}"
+                                                                                         SelectedItem="{Binding Color, Mode=TwoWay}"
+                                                                                         Width="288" MaxHeight="180"
+                                                                                         BorderThickness="1"
+                                                                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                                                    <ListBox.ItemsPanel>
+                                                                                        <ItemsPanelTemplate>
+                                                                                            <UniformGrid Columns="12"/>
+                                                                                        </ItemsPanelTemplate>
+                                                                                    </ListBox.ItemsPanel>
+                                                                                    <ListBox.ItemContainerStyle>
+                                                                                        <Style TargetType="ListBoxItem">
+                                                                                            <Setter Property="Padding" Value="1"/>
+                                                                                            <Setter Property="Margin" Value="0"/>
+                                                                                        </Style>
+                                                                                    </ListBox.ItemContainerStyle>
+                                                                                    <ListBox.ItemTemplate>
+                                                                                        <DataTemplate>
+                                                                                            <Border Width="20" Height="14" Background="{Binding Brush}"/>
+                                                                                        </DataTemplate>
+                                                                                    </ListBox.ItemTemplate>
+                                                                                </ListBox>
+
+                                                                                <TextBlock Text="Тип линии" Margin="0,8,0,3"
+                                                                                           Foreground="{StaticResource MutedForeground}"/>
+                                                                                <ComboBox Width="288"
+                                                                                          ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.LineTypeOptions}}"
+                                                                                          DisplayMemberPath="Label"
+                                                                                          SelectedValuePath="Value"
+                                                                                          SelectedValue="{Binding LineType, Mode=TwoWay}"/>
+
+                                                                                <TextBlock Text="Толщина линии" Margin="0,8,0,3"
+                                                                                           Foreground="{StaticResource MutedForeground}"/>
+                                                                                <ComboBox Width="288"
+                                                                                          ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.LineWidthOptions}}"
+                                                                                          SelectedItem="{Binding LineWidth, Mode=TwoWay}"/>
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </Popup>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
                                                 </Border>
 
                                                 <!-- Chart -->
