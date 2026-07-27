@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Input;
 using FirebirdViewer.Commands;
+using FirebirdViewer.Models;
 
 namespace FirebirdViewer.ViewModels;
 

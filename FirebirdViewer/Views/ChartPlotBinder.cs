@@ -16,7 +16,7 @@ namespace FirebirdViewer.Views;
 ///
 /// ScottPlot 5 API touch-points to confirm when building:
 ///   • plot.Add.Scatter(double[], double[])  → Scatter { Color, LineWidth, MarkerSize, LegendText }
-///   • plot.Axes.Bottom / .Left / .AddLeftAxis() / .AddBottomAxis()
+///   • plot.Axes.Bottom / .Left / .Top / .AddLeftAxis() / .AddTopAxis()
 ///   • plottable.Axes.XAxis / .YAxis
 ///   • axis.Label.Text / axis.Label.ForeColor / axis.TickLabelStyle.ForeColor
 ///   • axis.TickGenerator = new ScottPlot.TickGenerators.DateTimeAutomatic()
@@ -36,7 +36,7 @@ public sealed class ChartPlotBinder : IDisposable
     private IPlottable? _pickMarker;
     private IPlottable? _pickLabel;
 
-    // Axes we added via AddLeftAxis/AddBottomAxis. plot.Clear() removes plottables
+    // Axes we added via AddLeftAxis/AddTopAxis. plot.Clear() removes plottables
     // but not axes, so we must remove these ourselves before each re-render.
     private readonly System.Collections.Generic.List<ScottPlot.IAxis> _addedAxes = new();
 
@@ -115,8 +115,9 @@ public sealed class ChartPlotBinder : IDisposable
             : new ScottPlot.TickGenerators.NumericAutomatic();
 
         // The default value axis (reused each render) — reset its colour in case a
-        // previous separate-scale render tinted it.
-        var defaultValueAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Bottom : plot.Axes.Left;
+        // previous separate-scale render tinted it. In vertical orientation the value
+        // scales sit on Top (above the plot), which reads better for borehole logs.
+        var defaultValueAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Top : plot.Axes.Left;
         defaultValueAxis.Label.ForeColor = ScottPlot.Colors.Black;
         defaultValueAxis.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
         defaultValueAxis.Label.Text = snap.SeparateScales ? "" : "Значение";
@@ -136,7 +137,7 @@ public sealed class ChartPlotBinder : IDisposable
             }
             else
             {
-                valueAxis = snap.Vertical ? plot.Axes.AddBottomAxis() : plot.Axes.AddLeftAxis();
+                valueAxis = snap.Vertical ? plot.Axes.AddTopAxis() : plot.Axes.AddLeftAxis();
                 _addedAxes.Add(valueAxis);
             }
             if (snap.SeparateScales)
@@ -315,9 +316,25 @@ public sealed class ChartPlotBinder : IDisposable
         label.LabelBorderColor = colour;
         label.LabelBorderWidth = 1;
         label.LabelPadding = 4;
-        label.LabelAlignment = ScottPlot.Alignment.LowerLeft;
-        label.OffsetX = 8;
-        label.OffsetY = -8;
+
+        // Open the label toward the middle of the plot so it is never clipped by an
+        // edge: a point in the upper half gets a label hanging below it, a point on
+        // the right gets one extending left, and so on. LabelAlignment names the
+        // corner of the label pinned to the point.
+        var px = plot.GetPixel(new Coordinates(xv, yv), c.X, c.Y);
+        var rect = plot.LastRender.DataRect;
+        bool upperHalf = px.Y < (rect.Top + rect.Bottom) / 2f;   // pixel Y grows downward
+        bool rightHalf = px.X > (rect.Left + rect.Right) / 2f;
+
+        label.LabelAlignment = (upperHalf, rightHalf) switch
+        {
+            (true,  false) => ScottPlot.Alignment.UpperLeft,   // extends down-right
+            (true,  true)  => ScottPlot.Alignment.UpperRight,  // extends down-left
+            (false, false) => ScottPlot.Alignment.LowerLeft,   // extends up-right
+            (false, true)  => ScottPlot.Alignment.LowerRight,  // extends up-left
+        };
+        label.OffsetX = rightHalf ? -8 : 8;
+        label.OffsetY = upperHalf ? 8 : -8;
         _pickLabel = label;
 
         _plot.Refresh();
