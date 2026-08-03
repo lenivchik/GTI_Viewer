@@ -107,46 +107,70 @@ public sealed class ChartPlotBinder : IDisposable
         _pickLabel = null;
         _plotted.Clear();
 
+        // ScottPlot keeps four default axes alive for the lifetime of the plot. Hide
+        // them all up front, then show only the one we use as the independent axis —
+        // otherwise the axis configured in the previous orientation (e.g. Bottom
+        // holding "Время") keeps rendering after a switch to vertical.
+        plot.Axes.Bottom.IsVisible = false;
+        plot.Axes.Left.IsVisible   = false;
+        plot.Axes.Top.IsVisible    = false;
+        plot.Axes.Right.IsVisible  = false;
+
         // The independent (time/depth) axis: bottom when horizontal, left when vertical.
         var indepAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Left : plot.Axes.Bottom;
+        indepAxis.IsVisible = true;
         indepAxis.Label.Text = snap.IsTime ? "Время" : "Глубина забоя, м";
+        indepAxis.Label.ForeColor = ScottPlot.Colors.Black;
+        indepAxis.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
         indepAxis.TickGenerator = snap.IsTime
             ? new ScottPlot.TickGenerators.DateTimeAutomatic()
             : new ScottPlot.TickGenerators.NumericAutomatic();
 
-        // The default value axis (reused each render) — reset its colour in case a
-        // previous separate-scale render tinted it. In vertical orientation the value
-        // scales sit on Top (above the plot), which reads better for borehole logs.
-        var defaultValueAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Top : plot.Axes.Left;
-        defaultValueAxis.Label.ForeColor = ScottPlot.Colors.Black;
-        defaultValueAxis.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
-        defaultValueAxis.Label.Text = snap.SeparateScales ? "" : "Значение";
+        // Value scales always get their own dedicated axes (never a default one), so
+        // ScottPlot stacks them in separate tiers and their labels cannot overlap.
+        // Vertical → Top (above the plot); horizontal → Left.
+        ScottPlot.IAxis NewValueAxis()
+        {
+            var a = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.AddTopAxis() : plot.Axes.AddLeftAxis();
+            _addedAxes.Add(a);
+            return a;
+        }
 
         var valueAxes = new System.Collections.Generic.List<ScottPlot.IAxis>();
 
-        int index = 0;
+        // Shared mode: one axis for every curve.
+        ScottPlot.IAxis? sharedValueAxis = null;
+        if (!snap.SeparateScales)
+        {
+            sharedValueAxis = NewValueAxis();
+            sharedValueAxis.Label.Text = "Значение";
+            valueAxes.Add(sharedValueAxis);
+        }
+
+        // With nothing selected, still show one value axis so the panel looks like a chart.
+        if (snap.Series.Count == 0 && sharedValueAxis is null)
+        {
+            var placeholder = NewValueAxis();
+            placeholder.Label.Text = "Значение";
+        }
+
         foreach (var s in snap.Series)
         {
             var colour = ToScott(s.Color);
 
-            // Value axis: shared → the default cross-axis; separate → one per curve.
             ScottPlot.IAxis valueAxis;
-            if (!snap.SeparateScales || index == 0)
-            {
-                valueAxis = defaultValueAxis;
-            }
-            else
-            {
-                valueAxis = snap.Vertical ? plot.Axes.AddTopAxis() : plot.Axes.AddLeftAxis();
-                _addedAxes.Add(valueAxis);
-            }
             if (snap.SeparateScales)
             {
+                valueAxis = NewValueAxis();
                 valueAxis.Label.Text = s.Name;
                 valueAxis.Label.ForeColor = colour;
                 valueAxis.TickLabelStyle.ForeColor = colour;
+                valueAxes.Add(valueAxis);
             }
-            if (!valueAxes.Contains(valueAxis)) valueAxes.Add(valueAxis);
+            else
+            {
+                valueAxis = sharedValueAxis!;
+            }
 
             // Horizontal: X = independent, Y = value.  Vertical: swap.
             double[] xs = snap.Vertical ? s.Values : s.Independent;
@@ -174,8 +198,6 @@ public sealed class ChartPlotBinder : IDisposable
             scatter.Axes.XAxis = xAxisUsed;
             scatter.Axes.YAxis = yAxisUsed;
             _plotted.Add(new PlottedCurve(scatter, xAxisUsed, yAxisUsed, s));
-
-            index++;
         }
 
         plot.Axes.AutoScale();
