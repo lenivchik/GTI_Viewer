@@ -53,11 +53,15 @@ public sealed class ChartPlotBinder : IDisposable
 
         _vm.RenderRequested += Render;
         _vm.SelectionCleared += OnSelectionCleared;
+        _vm.ZoomRequested += OnZoom;
+        _vm.ZoomResetRequested += OnZoomReset;
 
         _plot.PreviewMouseLeftButtonDown += OnMouseDown;
         _plot.PreviewMouseMove += OnMouseMove;
         _plot.PreviewMouseLeftButtonUp += OnMouseUp;
         _plot.PreviewMouseDoubleClick += OnDoubleClick;
+        _plot.PreviewMouseWheel += OnMouseWheel;
+        _plot.MouseLeave += OnMouseLeave;
 
         Render();
     }
@@ -66,11 +70,63 @@ public sealed class ChartPlotBinder : IDisposable
     {
         _vm.RenderRequested -= Render;
         _vm.SelectionCleared -= OnSelectionCleared;
+        _vm.ZoomRequested -= OnZoom;
+        _vm.ZoomResetRequested -= OnZoomReset;
         _plot.PreviewMouseLeftButtonDown -= OnMouseDown;
         _plot.PreviewMouseMove -= OnMouseMove;
         _plot.PreviewMouseLeftButtonUp -= OnMouseUp;
         _plot.PreviewMouseDoubleClick -= OnDoubleClick;
+        _plot.PreviewMouseWheel -= OnMouseWheel;
+        _plot.MouseLeave -= OnMouseLeave;
     }
+
+    // ============================================================
+    // Scale vs. scroll
+    // ============================================================
+
+    /// <summary>
+    /// Plain wheel scrolls the surrounding list; Ctrl+wheel zooms the chart. Without
+    /// this split the plot swallowed every wheel event, so there was no way to move
+    /// up and down the screen once the pointer was over a chart.
+    /// </summary>
+    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;   // let ScottPlot zoom
+
+        e.Handled = true;
+        if (VisualTreeHelper.GetParent(_plot) is UIElement parent)
+        {
+            parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = UIElement.MouseWheelEvent,
+                Source = _plot,
+            });
+        }
+    }
+
+    /// <summary>Scale the independent axis about its centre. factor &gt; 1 zooms in.</summary>
+    private void OnZoom(double factor)
+    {
+        if (factor <= 0) return;
+        var plot = _plot.Plot;
+        var axis = _vm.Orientation == ChartOrientation.Vertical
+            ? (ScottPlot.IAxis)plot.Axes.Left
+            : plot.Axes.Bottom;
+
+        double min = axis.Min, max = axis.Max;
+        if (!double.IsFinite(min) || !double.IsFinite(max) || max <= min) return;
+
+        double centre = (min + max) / 2;
+        double half = (max - min) / 2 / factor;
+        axis.Min = centre - half;
+        axis.Max = centre + half;
+        _plot.Refresh();
+    }
+
+    /// <summary>Back to the full data range (a full re-render also restores the axis rules).</summary>
+    private void OnZoomReset() => Render();
+
+    private void OnMouseLeave(object sender, MouseEventArgs e) => _vm.CursorText = null;
 
     private static ScottPlot.Color ToScott(ChartColor c) => new(c.R, c.G, c.B);
 
@@ -98,6 +154,12 @@ public sealed class ChartPlotBinder : IDisposable
         // OA dates outside DateTime's range throw; show nothing rather than crash.
         if (oa < -657435.0 || oa > 2958465.99999999) return string.Empty;
         return DateTime.FromOADate(oa).ToString("dd.MM HH:mm");
+    }
+
+    private static string FormatOaDateLong(double oa)
+    {
+        if (oa < -657435.0 || oa > 2958465.99999999) return string.Empty;
+        return DateTime.FromOADate(oa).ToString("dd.MM.yyyy HH:mm:ss");
     }
 
     /// <summary>Maps our CurveLineType onto ScottPlot's line pattern + connect style.</summary>
@@ -186,10 +248,7 @@ public sealed class ChartPlotBinder : IDisposable
             if (snap.SeparateScales)
             {
                 valueAxis = NewValueAxis();
-                // In portrait the top axes are short and the curve name would sit on
-                // top of the tick numbers. The legend strip above already names each
-                // curve, so show only the (colour-matched) numbers there.
-                valueAxis.Label.Text = snap.Vertical ? string.Empty : s.Name;
+                valueAxis.Label.Text = s.Name;
                 valueAxis.Label.ForeColor = colour;
                 valueAxis.TickLabelStyle.ForeColor = colour;
                 valueAxes.Add(valueAxis);
@@ -273,7 +332,18 @@ public sealed class ChartPlotBinder : IDisposable
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_dragging) return;
+        if (!_dragging)
+        {
+            // Track where the pointer is along the time/depth axis.
+            var at = IndepAt(e);
+            _vm.CursorText = double.IsFinite(at)
+                ? (_vm.XAxis == ChartXAxisMode.Time
+                    ? FormatOaDateLong(at)
+                    : $"{at.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} м")
+                : null;
+            return;
+        }
+
         DrawBand(_dragStartIndep, IndepAt(e));
         e.Handled = true;
     }

@@ -287,6 +287,24 @@
                                                                       VerticalAlignment="Center" Margin="16,0,0,0"
                                                                       IsChecked="{Binding SeparateScales, Mode=TwoWay}"
                                                                       ToolTip="Каждая кривая получает свою ось значений (для разных диапазонов)"/>
+
+                                                            <!-- Explicit scale controls: the wheel alone was ambiguous
+                                                                 (zoom vs. scrolling the page). -->
+                                                            <TextBlock Text="Масштаб:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                                                            <Button Content="−" Width="26" Padding="0,1"
+                                                                    Command="{Binding ZoomOutCommand}"
+                                                                    ToolTip="Уменьшить масштаб (показать больший интервал)"/>
+                                                            <Button Content="+" Width="26" Padding="0,1" Margin="3,0,0,0"
+                                                                    Command="{Binding ZoomInCommand}"
+                                                                    ToolTip="Увеличить масштаб (показать меньший интервал)"/>
+                                                            <Button Content="Весь диапазон" Padding="6,1" Margin="3,0,0,0"
+                                                                    Command="{Binding ZoomResetCommand}"
+                                                                    ToolTip="Показать все данные"/>
+
+                                                            <TextBlock Text="{Binding CursorText}"
+                                                                       VerticalAlignment="Center" Margin="14,0,0,0"
+                                                                       Foreground="{StaticResource MutedForeground}"
+                                                                       ToolTip="Положение курсора по оси времени / глубины"/>
                                                         </StackPanel>
                                                     </DockPanel>
                                                 </Border>
@@ -419,7 +437,7 @@
                                                 <!-- Chart -->
                                                 <sp:WpfPlot Loaded="ChartPlot_Loaded"
                                                             Unloaded="ChartPlot_Unloaded"
-                                                            ToolTip="Двойной клик по точке — значение; Shift + протяните мышью — среднее / мин / макс по участку"/>
+                                                            ToolTip="Ctrl + колесо — масштаб; колесо — прокрутка страницы;&#x0a;двойной клик по точке — значение;&#x0a;Shift + протяните мышью — среднее / мин / макс по участку"/>
                                             </DockPanel>
                                         </Border>
                                     </DataTemplate>

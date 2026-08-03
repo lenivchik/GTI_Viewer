@@ -27,6 +27,10 @@ public sealed class ChartPanelViewModel : ObservableObject
         LegendItems = new ObservableCollection<ChartParameterRef>();
         SelectionStats = new ObservableCollection<CurveStat>();
         ClearSelectionCommand = new RelayCommand(_ => ClearSelection(), _ => HasSelectionStats);
+
+        ZoomInCommand    = new RelayCommand(_ => ZoomRequested?.Invoke(1.25));
+        ZoomOutCommand   = new RelayCommand(_ => ZoomRequested?.Invoke(1 / 1.25));
+        ZoomResetCommand = new RelayCommand(_ => ZoomResetRequested?.Invoke());
     }
 
     // ---- Raised for the renderer ---------------------------------------------
@@ -35,6 +39,20 @@ public sealed class ChartPanelViewModel : ObservableObject
     public event Action? RenderRequested;
     /// <summary>Remove the band-selection rectangle the renderer drew.</summary>
     public event Action? SelectionCleared;
+    /// <summary>Scale the independent axis about its centre (&gt;1 zooms in).</summary>
+    public event Action<double>? ZoomRequested;
+    /// <summary>Restore the full data range.</summary>
+    public event Action? ZoomResetRequested;
+
+    // ---- Scale controls & cursor readout --------------------------------------
+
+    public ICommand ZoomInCommand    { get; }
+    public ICommand ZoomOutCommand   { get; }
+    public ICommand ZoomResetCommand { get; }
+
+    /// <summary>Time/depth under the mouse pointer, shown in the chart header.</summary>
+    private string? _cursorText;
+    public string? CursorText { get => _cursorText; set => SetProperty(ref _cursorText, value); }
 
     private void RequestRender()
     {
