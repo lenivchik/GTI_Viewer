@@ -205,7 +205,25 @@
                                                 BorderThickness="0,0,1,1"
                                                 Margin="0,0,4,4"
                                                 Background="White"
-                                                MinHeight="420" MinWidth="440">
+                                                MinWidth="440">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <!-- Landscape: panels stack downward, so each needs a
+                                                         minimum height and the list scrolls vertically. -->
+                                                    <Setter Property="MinHeight" Value="420"/>
+                                                    <Style.Triggers>
+                                                        <!-- Portrait: panels sit side by side. Stretch to the
+                                                             viewport height instead of forcing a fixed 420,
+                                                             which pushed the content past the bottom edge. -->
+                                                        <DataTrigger
+                                                            Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.GlobalOrientationIsVertical}"
+                                                            Value="True">
+                                                            <Setter Property="MinHeight" Value="0"/>
+                                                            <Setter Property="VerticalAlignment" Value="Stretch"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <DockPanel>
                                                 <!-- Per-chart header: title, X-axis, parameters popup, scale toggle, remove -->
                                                 <Border DockPanel.Dock="Top" Padding="6"

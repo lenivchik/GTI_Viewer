@@ -74,6 +74,32 @@ public sealed class ChartPlotBinder : IDisposable
 
     private static ScottPlot.Color ToScott(ChartColor c) => new(c.R, c.G, c.B);
 
+    /// <summary>
+    /// Tick generator for the independent axis. DateTimeAutomatic only emits ticks
+    /// on a horizontal axis — on the vertical (Left) axis it produces none, which
+    /// left the time scale blank in portrait mode. There we fall back to numeric
+    /// ticks and format the OA-date values ourselves.
+    /// </summary>
+    private static ScottPlot.ITickGenerator MakeIndepTickGenerator(ChartSnapshot snap)
+    {
+        if (!snap.IsTime)
+            return new ScottPlot.TickGenerators.NumericAutomatic();
+
+        if (!snap.Vertical)
+            return new ScottPlot.TickGenerators.DateTimeAutomatic();
+
+        var gen = new ScottPlot.TickGenerators.NumericAutomatic();
+        gen.LabelFormatter = FormatOaDate;
+        return gen;
+    }
+
+    private static string FormatOaDate(double oa)
+    {
+        // OA dates outside DateTime's range throw; show nothing rather than crash.
+        if (oa < -657435.0 || oa > 2958465.99999999) return string.Empty;
+        return DateTime.FromOADate(oa).ToString("dd.MM HH:mm");
+    }
+
     /// <summary>Maps our CurveLineType onto ScottPlot's line pattern + connect style.</summary>
     private static void ApplyLineType(ScottPlot.Plottables.Scatter scatter, CurveLineType type)
     {
@@ -122,9 +148,7 @@ public sealed class ChartPlotBinder : IDisposable
         indepAxis.Label.Text = snap.IsTime ? "Время" : "Глубина забоя, м";
         indepAxis.Label.ForeColor = ScottPlot.Colors.Black;
         indepAxis.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
-        indepAxis.TickGenerator = snap.IsTime
-            ? new ScottPlot.TickGenerators.DateTimeAutomatic()
-            : new ScottPlot.TickGenerators.NumericAutomatic();
+        indepAxis.TickGenerator = MakeIndepTickGenerator(snap);
 
         // Value scales always get their own dedicated axes (never a default one), so
         // ScottPlot stacks them in separate tiers and their labels cannot overlap.
@@ -162,7 +186,10 @@ public sealed class ChartPlotBinder : IDisposable
             if (snap.SeparateScales)
             {
                 valueAxis = NewValueAxis();
-                valueAxis.Label.Text = s.Name;
+                // In portrait the top axes are short and the curve name would sit on
+                // top of the tick numbers. The legend strip above already names each
+                // curve, so show only the (colour-matched) numbers there.
+                valueAxis.Label.Text = snap.Vertical ? string.Empty : s.Name;
                 valueAxis.Label.ForeColor = colour;
                 valueAxis.TickLabelStyle.ForeColor = colour;
                 valueAxes.Add(valueAxis);
