@@ -6,27 +6,13 @@ namespace FirebirdViewer.Metadata;
 
 public sealed record ColumnInfo(string DisplayName, string Unit, string Description);
 
-public sealed record TableInfo(string DisplayName, string Description);
-
 /// <summary>
-/// Converts raw Firebird table/column identifiers into friendly Russian
-/// labels suitable for end users. Names are taken from the GtiRealtimeCharts
-/// parameter catalog so the two applications agree on terminology.
+/// Converts raw Firebird column identifiers into friendly Russian labels
+/// suitable for end users. The live PARAMS catalog is the primary source;
+/// the dictionaries below cover the columns PARAMS does not describe.
 /// </summary>
 public static class FriendlyNames
 {
-    public static TableInfo? GetTable(string? tableName)
-    {
-        if (string.IsNullOrWhiteSpace(tableName)) return null;
-        return Tables.TryGetValue(tableName.Trim(), out var info) ? info : null;
-    }
-
-    public static string GetTableDisplay(string? tableName)
-    {
-        var info = GetTable(tableName);
-        return info is not null ? info.DisplayName : Prettify(tableName ?? string.Empty);
-    }
-
     public static ColumnInfo? GetColumn(string? tableName, string? columnName)
     {
         if (string.IsNullOrWhiteSpace(columnName)) return null;
@@ -142,29 +128,6 @@ public static class FriendlyNames
         s = s.ToLower(CultureInfo.CurrentCulture);
         return char.ToUpper(s[0], CultureInfo.CurrentCulture) + s.Substring(1);
     }
-
-    // ============================================================
-    // Table catalog
-    // ============================================================
-
-    private static readonly Dictionary<string, TableInfo> Tables = new(System.StringComparer.OrdinalIgnoreCase)
-    {
-        ["REC_HEADERS"]              = new("Время и глубина",                "Время записи, забой, долото и привязка к рейсу."),
-        ["REC_COMMON"]               = new("Параметры бурения",              "Основные параметры (вес, давление, обороты, расход и др.)."),
-        ["REC_LAG"]                  = new("Газовые показания",              "Показания хроматографа и суммарного газа (с задержкой)."),
-        ["REC_OTHER"]                = new("Дополнительные параметры",       "Параметры, передаваемые через каталог PARAMS."),
-        ["REC_OTHER_WELL"]           = new("Параметры скважины (доп.)",      "Параметры, привязанные к конкретной скважине."),
-        ["WELLBORES"]                = new("Скважины",                       "Список скважин."),
-        ["RACES"]                    = new("Рейсы",                          "Спуско-подъёмные рейсы по скважине."),
-        ["OPERATIONS"]               = new("Операции",                       "Операции, выполненные на скважине."),
-        ["OPER_TYPES"]               = new("Типы операций",                  "Справочник видов операций."),
-        ["TROUBLES"]                 = new("Осложнения",                     "Зарегистрированные осложнения и аварии."),
-        ["TROUBLE_TYPES"]            = new("Типы осложнений",                "Справочник видов осложнений."),
-        ["PARAMS"]                   = new("Каталог параметров",             "Описание параметров, регистрируемых станцией."),
-        ["OTHER_WELL_PARAMS"]        = new("Параметры скважины (каталог)",   "Описание дополнительных параметров скважины."),
-        ["OTHER_WELL_PARAMS_INDEX"]  = new("Индекс параметров скважины",     "Сопоставление параметров и физических каналов P_Vn."),
-        ["MUD_DATA"]                 = new("Данные по раствору",             "Замеры свойств бурового раствора."),
-    };
 
     // ============================================================
     // Columns common across many tables (fallback when table not found)
