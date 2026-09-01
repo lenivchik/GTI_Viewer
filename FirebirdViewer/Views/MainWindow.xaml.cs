@@ -146,6 +146,13 @@ public partial class MainWindow : Window
         ApplyTwoDecimalFormat(e.Column, e.PropertyType);
     }
 
+    private void ToolsGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
+    {
+        // The TOOLS_VIEW context maps the aliased columns produced by GetToolsAsync.
+        e.Column.Header = FriendlyNames.GetColumnDisplay("TOOLS_VIEW", e.PropertyName);
+        ApplyTwoDecimalFormat(e.Column, e.PropertyType);
+    }
+
     // ============================================================
     // Chart panels — one ChartPlotBinder per WpfPlot instance
     // ============================================================

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Globalization;
 using FirebirdViewer.Models;
 
@@ -180,6 +180,23 @@ public static class FriendlyNames
             ["BOTTOM_DEPTH"]     = new("Глубина забоя",       "м", "Текущая глубина забоя."),
             ["BIT_DEPTH"]        = new("Глубина долота",      "м", "Текущая глубина положения долота."),
             ["BOTTOM_LAG_DEPTH"] = new("Глубина забоя (лаг)", "м", "Глубина забоя с учётом отставания."),
+        },
+
+        // Synthetic schema for the Инструменты tab. GetToolsAsync aliases its result
+        // columns to these names; the underlying tables are BOTTOM_HOLE_ASSEMBLY (компоновка),
+        // DRILL_STRING_ITEM_TYPE (типы элементов) и DRILL_STRING_ITEM (типоразмеры).
+        ["TOOLS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ["TL_POS"]          = new("№",                   "",   "Позиция элемента в компоновке (BOTTOM_HOLE_ASSEMBLY.POS)."),
+            ["TL_NAME"]         = new("Название",            "",   "Тип элемента колонны: свеча, долото, УБТ, забойный двигатель и т. д."),
+            ["TL_BRAND"]        = new("Марка",               "",   "Конкретный типоразмер инструмента из справочника DRILL_STRING_ITEM."),
+            ["TL_COUNT"]        = new("Кол-во",              "",   "Число одинаковых элементов в этой позиции."),
+            ["TL_DIAMETER"]     = new("Диаметр",             "мм", "Наружный диаметр элемента."),
+            ["TL_WALL"]         = new("Толщина стенки",      "мм", "Толщина стенки трубы."),
+            ["TL_WEIGHT_M"]     = new("Вес погонного метра", "кг", "Масса одного погонного метра."),
+            ["TL_LEN"]          = new("Длина",               "м",  "Длина одного элемента."),
+            ["TL_TOTAL_LEN"]    = new("Сумм. длина",         "м",  "Длина элемента, умноженная на количество."),
+            ["TL_TOTAL_WEIGHT"] = new("Сумм. вес",           "т",  "Вес погонного метра, умноженный на суммарную длину, в тоннах."),
         },
 
         // Synthetic schema for the Операции tab. The query in FirebirdService aliases

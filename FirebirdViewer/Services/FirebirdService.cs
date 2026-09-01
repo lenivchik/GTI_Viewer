@@ -204,6 +204,50 @@ public sealed class FirebirdService : IFirebirdService
         return dt;
     }
 
+    public async Task<DataTable> GetToolsAsync(long wellId, long? raceId, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        var raceFilter = raceId.HasValue ? "AND b.RACE_ID = @raceId" : string.Empty;
+
+        // Инструмент = компоновка бурильной колонны по рейсам. BOTTOM_HOLE_ASSEMBLY хранит
+        // позиции компоновки, DRILL_STRING_ITEM_TYPE — тип элемента («Свеча», «Долото», «УБТ»,
+        // «Забойный двигатель»…), DRILL_STRING_ITEM — конкретный типоразмер (марку) с его
+        // размерами. Размеры, проставленные в самой компоновке, имеют приоритет над
+        // справочными; там, где компоновка их не задаёт, берутся из справочника.
+        //
+        // Суммарные колонки считаются по строке: длина × количество, а вес — из веса
+        // погонного метра (кг) × суммарную длину, переведённый в тонны.
+        var sql = $@"
+            SELECT FIRST 500
+                   b.POS                                        AS TL_POS,
+                   t.NAME                                       AS TL_NAME,
+                   i.NAME                                       AS TL_BRAND,
+                   COALESCE(b.NMBR_OF_ITEMS, 1)                 AS TL_COUNT,
+                   COALESCE(b.DIAMETER, i.DIAMETER)             AS TL_DIAMETER,
+                   COALESCE(b.WALL_THICKNESS, i.WALL_THICKNESS) AS TL_WALL,
+                   COALESCE(b.WEIGHT, i.WEIGHT)                 AS TL_WEIGHT_M,
+                   COALESCE(b.LEN, i.LEN)                       AS TL_LEN,
+                   CAST(COALESCE(b.LEN, i.LEN)
+                        * COALESCE(b.NMBR_OF_ITEMS, 1) AS DOUBLE PRECISION)        AS TL_TOTAL_LEN,
+                   CAST(COALESCE(b.WEIGHT, i.WEIGHT) * COALESCE(b.LEN, i.LEN)
+                        * COALESCE(b.NMBR_OF_ITEMS, 1) / 1000 AS DOUBLE PRECISION) AS TL_TOTAL_WEIGHT
+            FROM BOTTOM_HOLE_ASSEMBLY b
+            JOIN RACES r ON r.RACE_ID = b.RACE_ID
+            LEFT JOIN DRILL_STRING_ITEM_TYPE t ON t.DSIT_ID = b.DSIT_ID
+            LEFT JOIN DRILL_STRING_ITEM      i ON i.DSI_ID  = b.DSI_ID
+            WHERE r.WELL_ID = @wellId
+              {raceFilter}
+            ORDER BY b.RACE_ID DESC, b.POS";
+
+        var dt = new DataTable("Tools");
+        await using var cmd = new FbCommand(sql, _connection);
+        cmd.Parameters.AddWithValue("wellId", wellId);
+        if (raceId.HasValue) cmd.Parameters.AddWithValue("raceId", raceId.Value);
+        using var adapter = new FbDataAdapter(cmd);
+        await Task.Run(() => adapter.Fill(dt), ct).ConfigureAwait(false);
+        return dt;
+    }
+
     public async Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default)
     {
         EnsureConnected();

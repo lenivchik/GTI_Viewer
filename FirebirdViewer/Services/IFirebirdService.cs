@@ -29,6 +29,9 @@ public interface IFirebirdService : IAsyncDisposable
     /// <summary>Operations (операции) for a given well, optionally restricted to a race.</summary>
     Task<DataTable> GetOperationsAsync(long wellId, long? raceId, CancellationToken ct = default);
 
+    /// <summary>Tool composition (компоновка инструмента) for a given well, optionally restricted to a race.</summary>
+    Task<DataTable> GetToolsAsync(long wellId, long? raceId, CancellationToken ct = default);
+
     /// <summary>Parameter catalog from the PARAMS table — friendly names, units, source columns.</summary>
     Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default);
 }

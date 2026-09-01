@@ -272,6 +272,9 @@ public sealed class MainViewModel : ObservableObject
     private DataView? _operationsData;
     public DataView? OperationsData { get => _operationsData; set => SetProperty(ref _operationsData, value); }
 
+    private DataView? _toolsData;
+    public DataView? ToolsData { get => _toolsData; set => SetProperty(ref _toolsData, value); }
+
     private int _rowLimit = 1000;
     public int RowLimit { get => _rowLimit; set => SetProperty(ref _rowLimit, value); }
 
@@ -280,6 +283,9 @@ public sealed class MainViewModel : ObservableObject
 
     private string? _operationsCountText;
     public string? OperationsCountText { get => _operationsCountText; set => SetProperty(ref _operationsCountText, value); }
+
+    private string? _toolsCountText;
+    public string? ToolsCountText { get => _toolsCountText; set => SetProperty(ref _toolsCountText, value); }
 
     // ============================================================
     // Recent connections
@@ -347,11 +353,12 @@ public sealed class MainViewModel : ObservableObject
         Columns.Clear();
         SelectedWell = null;
         SelectedRace = null;
-        CurrentTableData = OperationsData = null;
+        CurrentTableData = OperationsData = ToolsData = null;
         StatusText = "Отключено";
         ConnectionInfoText = null;
         RowCountText = null;
         OperationsCountText = null;
+        ToolsCountText = null;
         CursorText = null;
         PushDataToCharts();
     }
@@ -401,7 +408,7 @@ public sealed class MainViewModel : ObservableObject
 
         if (SelectedWell is null || !IsConnected)
         {
-            CurrentTableData = OperationsData = null;
+            CurrentTableData = OperationsData = ToolsData = null;
             Columns.Clear();
             return;
         }
@@ -426,7 +433,7 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedWell is null || !IsConnected)
         {
-            CurrentTableData = OperationsData = null;
+            CurrentTableData = OperationsData = ToolsData = null;
             Columns.Clear();
             return;
         }
@@ -434,6 +441,7 @@ public sealed class MainViewModel : ObservableObject
         var raceId = (SelectedRace is null || SelectedRace.IsAllRaces) ? (long?)null : SelectedRace.RaceId;
         await LoadRaceDataAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
         await LoadOperationsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+        await LoadToolsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
     }
 
     private async Task LoadRaceDataAsync(long wellId, long? raceId)
@@ -471,6 +479,23 @@ public sealed class MainViewModel : ObservableObject
             OperationsData = null;
             OperationsCountText = null;
             MessageBox.Show(ex.Message, "Ошибка чтения операций",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task LoadToolsAsync(long wellId, long? raceId)
+    {
+        try
+        {
+            var dt = await _db.GetToolsAsync(wellId, raceId).ConfigureAwait(true);
+            ToolsData = dt.DefaultView;
+            ToolsCountText = $"Инструмент: {dt.Rows.Count}";
+        }
+        catch (Exception ex)
+        {
+            ToolsData = null;
+            ToolsCountText = null;
+            MessageBox.Show(ex.Message, "Ошибка чтения инструмента",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

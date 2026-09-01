@@ -76,6 +76,8 @@
             <Separator/>
             <StatusBarItem><TextBlock Text="{Binding OperationsCountText}"/></StatusBarItem>
             <Separator/>
+            <StatusBarItem><TextBlock Text="{Binding ToolsCountText}"/></StatusBarItem>
+            <Separator/>
             <StatusBarItem><TextBlock Text="{Binding CursorText}" Foreground="{StaticResource MutedForeground}"/></StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock Text="{Binding ConnectionInfoText}" Foreground="{StaticResource MutedForeground}" Margin="0,0,8,0"/>
@@ -516,6 +518,20 @@
                                   GridLinesVisibility="Horizontal"
                                   AlternatingRowBackground="#F7F9FB"/>
                     </Grid>
+                </TabItem>
+
+                <!-- ===== Инструменты ===== -->
+                <TabItem Header="Инструменты">
+                    <DataGrid x:Name="ToolsGrid"
+                              ItemsSource="{Binding ToolsData}"
+                              AutoGeneratingColumn="ToolsGrid_AutoGeneratingColumn"
+                              IsReadOnly="True"
+                              AutoGenerateColumns="True"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F7F9FB"/>
                 </TabItem>
 
                 <!-- ===== Операции ===== -->
