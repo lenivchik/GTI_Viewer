@@ -20,12 +20,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        _vm = new MainViewModel(new FirebirdService(), new SettingsService());
+        _vm = new MainViewModel(new FirebirdService(), new SettingsService(), new LiveDataService());
         DataContext = _vm;
 
         _vm.ColumnOrderChanged += (_, _) => SyncColumnOrder();
         _vm.ConnectRequested   += async (_, settings) => await OpenConnectDialogAsync(settings);
-        Closed += (_, _) => _vm.SaveSettings();
+        Closed += (_, _) =>
+        {
+            _vm.SaveSettings();
+            _vm.Shutdown();      // stop real-time polling before the app tears down
+        };
     }
 
     // ============================================================

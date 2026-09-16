@@ -37,6 +37,8 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     /// <summary>Rebuild the whole plot (data, axes, orientation, scales changed).</summary>
     public event Action? RenderRequested;
+    /// <summary>Redraw after a real-time append — same axes, so the current zoom is kept.</summary>
+    public event Action? LiveRenderRequested;
     /// <summary>Remove the band-selection rectangle the renderer drew.</summary>
     public event Action? SelectionCleared;
     /// <summary>Scale the independent axis about its centre (&gt;1 zooms in).</summary>
@@ -135,6 +137,17 @@ public sealed class ChartPanelViewModel : ObservableObject
         _data = data;
         SyncParameters(columns);
         RequestRender();
+    }
+
+    /// <summary>
+    /// Called by <see cref="MainViewModel"/> when real-time mode appended rows to the table
+    /// this panel is already showing. The columns are unchanged, so only the series are
+    /// rebuilt — and the renderer keeps the window the user is looking at.
+    /// </summary>
+    public void NotifyDataAppended()
+    {
+        BuildSeries();
+        LiveRenderRequested?.Invoke();
     }
 
     private void SyncParameters(IEnumerable<ColumnVisibility> columns)

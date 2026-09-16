@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Data;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -20,11 +19,13 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly IFirebirdService _db;
     private readonly ISettingsService _settings;
+    private readonly ILiveDataService _live;
 
-    public MainViewModel(IFirebirdService db, ISettingsService settings)
+    public MainViewModel(IFirebirdService db, ISettingsService settings, ILiveDataService live)
     {
         _db = db;
         _settings = settings;
+        _live = live;
 
         Wells              = new ObservableCollection<WellInfo>();
         Races              = new ObservableCollection<RaceInfo>();
@@ -44,6 +45,7 @@ public sealed class MainViewModel : ObservableObject
         ClearRecentCommand    = new RelayCommand(_ => ClearRecent());
         AddChartCommand       = new RelayCommand(_ => AddChart());
         RemoveChartCommand    = new RelayCommand(p => RemoveChart(p as ChartPanelViewModel));
+        ToggleLiveCommand     = new RelayCommand(_ => IsLiveMode = !IsLiveMode, _ => IsConnected);
 
         // Seed one chart so the Графики tab is never empty.
         AddChart();
@@ -262,6 +264,15 @@ public sealed class MainViewModel : ObservableObject
         foreach (var c in Charts) c.SetData(CurrentTableData, Columns);
     }
 
+    /// <summary>
+    /// Redraw every chart after a real-time append. The column list did not change, so the
+    /// panels only re-read the table — and they keep the operator's current zoom window.
+    /// </summary>
+    private void PushLiveDataToCharts()
+    {
+        foreach (var c in Charts) c.NotifyDataAppended();
+    }
+
     // ============================================================
     // Data
     // ============================================================
@@ -288,6 +299,317 @@ public sealed class MainViewModel : ObservableObject
     public string? ToolsCountText { get => _toolsCountText; set => SetProperty(ref _toolsCountText, value); }
 
     // ============================================================
+    // Real-time mode (Реальное время)
+    //
+    // The archive is read once per selection; real-time mode keeps that view
+    // current by asking the server, every few seconds, only for the rows the
+    // registrar has written since the previous poll. New rows are spliced onto
+    // the top of the table already on screen, so the grid, the charts and the
+    // counters move as drilling goes on instead of freezing at the moment the
+    // race was opened.
+    // ============================================================
+
+    /// <summary>Carries the polling watermark. Hidden in the grid unless the user asks for it.</summary>
+    private const string RecIdColumn = "REC_HEADER_ID";
+
+    /// <summary>Operations, tool composition and the race list are re-read on this slower beat.</summary>
+    private static readonly TimeSpan ContextRefreshInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>Consecutive failed polls before real-time mode gives up and says so.</summary>
+    private const int MaxLivePollFailures = 3;
+
+    /// <summary>How many of the newest records are re-read on the slow beat to pick up late values.</summary>
+    private const int RecentRefreshRows = 200;
+
+    /// <summary>Newest REC_HEADER_ID on screen — the starting point of the next poll.</summary>
+    private long _lastRecHeaderId;
+
+    private int _livePollFailures;
+    private DateTime _lastContextRefreshUtc;
+
+    /// <summary>
+    /// Set while a poll runs. Load failures are then reported in the status bar and leave
+    /// the current data alone — a modal dialog every few seconds, or a grid wiped by one
+    /// dropped packet, would make the window unusable.
+    /// </summary>
+    private bool _inLivePoll;
+
+    /// <summary>Polling intervals offered in the toolbar.</summary>
+    public static IReadOnlyList<LiveIntervalOption> LiveIntervalOptions { get; } = new[]
+    {
+        new LiveIntervalOption(1,  "1 с"),
+        new LiveIntervalOption(2,  "2 с"),
+        new LiveIntervalOption(5,  "5 с"),
+        new LiveIntervalOption(10, "10 с"),
+        new LiveIntervalOption(30, "30 с"),
+        new LiveIntervalOption(60, "1 мин"),
+    };
+
+    private bool _isLiveMode;
+    public bool IsLiveMode
+    {
+        get => _isLiveMode;
+        set { if (SetProperty(ref _isLiveMode, value)) ApplyLiveMode(); }
+    }
+
+    private int _liveIntervalSeconds = 5;
+    public int LiveIntervalSeconds
+    {
+        get => _liveIntervalSeconds;
+        set
+        {
+            if (value <= 0) value = 5;
+            if (SetProperty(ref _liveIntervalSeconds, value))
+                _live.Interval = TimeSpan.FromSeconds(value);
+        }
+    }
+
+    /// <summary>True only while the timer is actually polling — drives the indicator in the status bar.</summary>
+    private bool _isLiveRunning;
+    public bool IsLiveRunning { get => _isLiveRunning; private set => SetProperty(ref _isLiveRunning, value); }
+
+    private string? _liveStatusText;
+    public string? LiveStatusText { get => _liveStatusText; private set => SetProperty(ref _liveStatusText, value); }
+
+    /// <summary>Race filter for the queries: null means «все рейсы».</summary>
+    private long? CurrentRaceId =>
+        SelectedRace is null || SelectedRace.IsAllRaces ? null : SelectedRace.RaceId;
+
+    /// <summary>Start or stop polling so it matches the toggle and what is currently selected.</summary>
+    private void ApplyLiveMode()
+    {
+        if (IsLiveMode && IsConnected && SelectedWell is not null) StartLive();
+        else StopLive();
+    }
+
+    private void StartLive()
+    {
+        _livePollFailures = 0;
+        _lastContextRefreshUtc = DateTime.UtcNow;
+        _live.Interval = TimeSpan.FromSeconds(LiveIntervalSeconds);
+        if (!_live.IsRunning) _live.Start(PollLiveAsync);
+        IsLiveRunning = true;
+        LiveStatusText = $"Реальное время: опрос каждые {LiveIntervalSeconds} с";
+    }
+
+    /// <summary><paramref name="reason"/> overrides the default text when polling stops after errors.</summary>
+    private void StopLive(string? reason = null)
+    {
+        _live.Stop();
+        IsLiveRunning = false;
+        LiveStatusText = reason ?? (!IsLiveMode ? null
+            : !IsConnected ? "Реальное время: нет подключения"
+            : "Реальное время: скважина не выбрана");
+    }
+
+    /// <summary>
+    /// One real-time beat: read the rows written since the previous poll, splice them onto
+    /// the top of the grid and redraw the charts. Operations, tool composition and the race
+    /// list follow on <see cref="ContextRefreshInterval"/> — they change far less often than
+    /// the parameter stream and each costs a full query.
+    /// </summary>
+    private async Task PollLiveAsync(CancellationToken ct)
+    {
+        var well = SelectedWell;
+        if (!IsConnected || well is null) { StopLive(); return; }
+
+        var raceId = CurrentRaceId;
+        _inLivePoll = true;
+        try
+        {
+            int appended;
+            var fullRead = false;
+            if (CurrentTableData?.Table is { } table && _lastRecHeaderId > 0)
+            {
+                var fresh = await _db.GetRaceDataSinceAsync(well.WellId, raceId, _lastRecHeaderId, RowLimit, ct)
+                                     .ConfigureAwait(true);
+                if (!StillSelected(well, raceId, ct)) return;
+                appended = AppendFreshRows(table, fresh);
+            }
+            else
+            {
+                // Nothing on screen to append onto (the selection has just changed, or the
+                // previous read failed) — read the window in full and start a new watermark.
+                var dt = await _db.GetRaceDataAsync(well.WellId, raceId, RowLimit, ct).ConfigureAwait(true);
+                if (!StillSelected(well, raceId, ct)) return;
+                ApplyRaceData(dt);
+                appended = dt.Rows.Count;
+                fullRead = true;   // ApplyRaceData has already published counters and charts
+            }
+
+            var updated = 0;
+            if (DateTime.UtcNow - _lastContextRefreshUtc >= ContextRefreshInterval)
+            {
+                _lastContextRefreshUtc = DateTime.UtcNow;
+
+                if (CurrentTableData?.Table is { } current)
+                {
+                    updated = await TopUpRecentRowsAsync(well.WellId, raceId, current, ct).ConfigureAwait(true);
+                    if (!StillSelected(well, raceId, ct)) return;
+                }
+
+                await RefreshRaceListAsync(well.WellId, ct).ConfigureAwait(true);
+                if (!StillSelected(well, raceId, ct)) return;
+                await LoadOperationsAsync(well.WellId, raceId).ConfigureAwait(true);
+                if (!StillSelected(well, raceId, ct)) return;
+                await LoadToolsAsync(well.WellId, raceId).ConfigureAwait(true);
+            }
+
+            if ((appended > 0 && !fullRead) || updated > 0)
+            {
+                RowCountText = $"Записей: {CurrentTableData?.Count ?? 0} (показано не более {RowLimit})";
+                PushLiveDataToCharts();
+            }
+
+            _livePollFailures = 0;
+            var stamp = DateTime.Now.ToString("HH:mm:ss");
+            LiveStatusText = appended > 0 ? $"Реальное время: {stamp}, +{appended}"
+                : updated > 0             ? $"Реальное время: {stamp}, уточнено записей: {updated}"
+                                          : $"Реальное время: {stamp}, новых записей нет";
+        }
+        catch (OperationCanceledException)
+        {
+            // Real-time mode was switched off while the query was running.
+        }
+        catch (Exception ex)
+        {
+            _livePollFailures++;
+            LiveStatusText = $"Реальное время: ошибка обновления — {ex.Message}";
+
+            if (_livePollFailures >= MaxLivePollFailures)
+            {
+                var message = ex.Message;
+                IsLiveMode = false;                       // ApplyLiveMode stops the timer
+                StopLive($"Реальное время выключено: {_livePollFailures} ошибки подряд");
+                MessageBox.Show(
+                    $"Автообновление остановлено после {_livePollFailures} неудачных попыток подряд.\n\n{message}",
+                    "Реальное время", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        finally
+        {
+            _inLivePoll = false;
+        }
+    }
+
+    /// <summary>
+    /// Guard for everything that resumes after an await: the operator may have picked another
+    /// well or race in the meantime, and those rows must not land on the new selection.
+    /// </summary>
+    private bool StillSelected(WellInfo well, long? raceId, CancellationToken ct) =>
+        !ct.IsCancellationRequested && ReferenceEquals(well, SelectedWell) && raceId == CurrentRaceId;
+
+    /// <summary>
+    /// Splice freshly read rows (oldest first) onto the top of the table on screen, advance
+    /// the watermark and drop whatever now falls past the row limit. Returns the row count.
+    /// </summary>
+    private int AppendFreshRows(DataTable target, DataTable fresh)
+    {
+        if (fresh.Rows.Count == 0) return 0;
+        if (!target.Columns.Contains(RecIdColumn) || !fresh.Columns.Contains(RecIdColumn)) return 0;
+
+        foreach (DataRow src in fresh.Rows)
+        {
+            var row = target.NewRow();
+            foreach (DataColumn col in target.Columns)
+            {
+                if (fresh.Columns.Contains(col.ColumnName))
+                    row[col] = src[col.ColumnName];
+            }
+            target.Rows.InsertAt(row, 0);   // newest first, same order as the full read
+
+            var id = ToInt64(src[RecIdColumn]);
+            if (id > _lastRecHeaderId) _lastRecHeaderId = id;
+        }
+
+        var limit = RowLimit > 0 ? RowLimit : 1000;
+        while (target.Rows.Count > limit) target.Rows.RemoveAt(target.Rows.Count - 1);
+
+        return fresh.Rows.Count;
+    }
+
+    /// <summary>
+    /// Re-read the newest records and copy changed values into the rows already on screen.
+    /// The gas analysis is logged with a lag, so a record can gain values minutes after its
+    /// header was written; without this pass the live view would keep the first, half-empty
+    /// version of those rows forever. Records newer than the watermark are skipped here —
+    /// they belong to the incremental poll, which is what advances the watermark.
+    /// </summary>
+    private async Task<int> TopUpRecentRowsAsync(long wellId, long? raceId, DataTable target, CancellationToken ct)
+    {
+        if (!target.Columns.Contains(RecIdColumn)) return 0;
+
+        var rows = RowLimit > 0 ? Math.Min(RecentRefreshRows, RowLimit) : RecentRefreshRows;
+        var fresh = await _db.GetRaceDataAsync(wellId, raceId, rows, ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested || !fresh.Columns.Contains(RecIdColumn)) return 0;
+
+        var byId = new Dictionary<long, DataRow>(target.Rows.Count);
+        foreach (DataRow row in target.Rows) byId[ToInt64(row[RecIdColumn])] = row;
+
+        var updated = 0;
+        foreach (DataRow src in fresh.Rows)
+        {
+            if (!byId.TryGetValue(ToInt64(src[RecIdColumn]), out var row)) continue;
+
+            var touched = false;
+            foreach (DataColumn col in target.Columns)
+            {
+                if (!fresh.Columns.Contains(col.ColumnName)) continue;
+                var value = src[col.ColumnName];
+                if (Equals(row[col], value)) continue;
+                row[col] = value;
+                touched = true;
+            }
+            if (touched) updated++;
+        }
+        return updated;
+    }
+
+    /// <summary>
+    /// Merge races that appeared since the list was built — a new one is opened every time
+    /// the crew trips in. The current selection is deliberately left alone: re-assigning it
+    /// would reload everything under the operator.
+    /// </summary>
+    private async Task RefreshRaceListAsync(long wellId, CancellationToken ct)
+    {
+        var list = await _db.GetRacesAsync(wellId, ct).ConfigureAwait(true);
+        if (ct.IsCancellationRequested) return;
+
+        var known = new HashSet<long>(Races.Select(r => r.RaceId));
+        var insertAt = Races.Count > 0 && Races[0].IsAllRaces ? 1 : 0;
+
+        // GetRacesAsync returns newest first; walking it backwards and always inserting at
+        // the same slot keeps the combo newest-first once several races have appeared.
+        foreach (var race in list.Reverse())
+        {
+            if (known.Add(race.RaceId)) Races.Insert(insertAt, race);
+        }
+    }
+
+    /// <summary>Remember the newest REC_HEADER_ID on screen — where the next poll resumes.</summary>
+    private void UpdateWatermark(DataTable? dt)
+    {
+        _lastRecHeaderId = 0;
+        if (dt is null || !dt.Columns.Contains(RecIdColumn)) return;
+        foreach (DataRow row in dt.Rows)
+        {
+            var id = ToInt64(row[RecIdColumn]);
+            if (id > _lastRecHeaderId) _lastRecHeaderId = id;
+        }
+    }
+
+    /// <summary>REC_HEADER_ID arrives as BIGINT, but legacy databases type it as NUMERIC.</summary>
+    private static long ToInt64(object? value) => value switch
+    {
+        long l    => l,
+        int i     => i,
+        short s   => s,
+        decimal m => (long)m,
+        double d  => (long)d,
+        _         => 0,
+    };
+
+    // ============================================================
     // Recent connections
     // ============================================================
 
@@ -308,6 +630,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ClearRecentCommand       { get; }
     public ICommand AddChartCommand          { get; }
     public ICommand RemoveChartCommand       { get; }
+    public ICommand ToggleLiveCommand        { get; }
 
     // ============================================================
     // Connect / disconnect
@@ -328,6 +651,7 @@ public sealed class MainViewModel : ObservableObject
 
             StatusText = "Подключено";
             ConnectionInfoText = $"{settings.Display}  ·  {_db.ServerVersion}";
+            ApplyLiveMode();
 
             AddToRecent(settings);
             SaveSettings();
@@ -345,9 +669,11 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task DisconnectAsync()
     {
+        StopLive();   // no poll may be in flight while the connection is closing
         await _db.DisconnectAsync().ConfigureAwait(true);
         FriendlyNames.ClearDynamicCatalog();
         IsConnected = false;
+        _lastRecHeaderId = 0;
         Wells.Clear();
         Races.Clear();
         Columns.Clear();
@@ -360,6 +686,7 @@ public sealed class MainViewModel : ObservableObject
         OperationsCountText = null;
         ToolsCountText = null;
         CursorText = null;
+        StopLive();   // again, now that the state is cleared, so the indicator reads "нет подключения"
         PushDataToCharts();
     }
 
@@ -410,6 +737,8 @@ public sealed class MainViewModel : ObservableObject
         {
             CurrentTableData = OperationsData = ToolsData = null;
             Columns.Clear();
+            _lastRecHeaderId = 0;
+            StopLive();
             return;
         }
 
@@ -435,35 +764,45 @@ public sealed class MainViewModel : ObservableObject
         {
             CurrentTableData = OperationsData = ToolsData = null;
             Columns.Clear();
+            _lastRecHeaderId = 0;
+            StopLive();
             return;
         }
 
-        var raceId = (SelectedRace is null || SelectedRace.IsAllRaces) ? (long?)null : SelectedRace.RaceId;
+        var raceId = CurrentRaceId;
         await LoadRaceDataAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
         await LoadOperationsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
         await LoadToolsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+
+        // The archive for this selection is on screen; from here real-time mode keeps it current.
+        ApplyLiveMode();
     }
 
     private async Task LoadRaceDataAsync(long wellId, long? raceId)
     {
         try
         {
-            var sw = Stopwatch.StartNew();
             var dt = await _db.GetRaceDataAsync(wellId, raceId, RowLimit).ConfigureAwait(true);
-            sw.Stop();
-
-            RebuildColumnVisibility(dt);
-            CurrentTableData = dt.DefaultView;
-            RowCountText = $"Записей: {dt.Rows.Count} (показано не более {RowLimit})";
-            PushDataToCharts();
+            ApplyRaceData(dt);
         }
         catch (Exception ex)
         {
             CurrentTableData = null;
             Columns.Clear();
+            _lastRecHeaderId = 0;
             MessageBox.Show(ex.Message, "Ошибка чтения данных",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>Publish a freshly read window: columns, grid, watermark, counter, charts.</summary>
+    private void ApplyRaceData(DataTable dt)
+    {
+        RebuildColumnVisibility(dt);
+        CurrentTableData = dt.DefaultView;
+        UpdateWatermark(dt);
+        RowCountText = $"Записей: {dt.Rows.Count} (показано не более {RowLimit})";
+        PushDataToCharts();
     }
 
     private async Task LoadOperationsAsync(long wellId, long? raceId)
@@ -476,6 +815,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            if (_inLivePoll) { LiveStatusText = $"Реальное время: операции — {ex.Message}"; return; }
             OperationsData = null;
             OperationsCountText = null;
             MessageBox.Show(ex.Message, "Ошибка чтения операций",
@@ -493,6 +833,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            if (_inLivePoll) { LiveStatusText = $"Реальное время: инструмент — {ex.Message}"; return; }
             ToolsData = null;
             ToolsCountText = null;
             MessageBox.Show(ex.Message, "Ошибка чтения инструмента",
@@ -512,7 +853,11 @@ public sealed class MainViewModel : ObservableObject
                 Name        = dc.ColumnName,
                 DisplayName = FriendlyNames.GetColumnDisplay(null, dc.ColumnName),
                 Description = FriendlyNames.GetColumnDescription(null, dc.ColumnName),
-                IsVisible   = prior.TryGetValue(dc.ColumnName, out var v) ? v : true
+                // REC_HEADER_ID is plumbing for real-time polling, not a drilling parameter:
+                // it is there for every new table but stays hidden until the user asks for it.
+                IsVisible   = prior.TryGetValue(dc.ColumnName, out var v)
+                                ? v
+                                : !string.Equals(dc.ColumnName, RecIdColumn, StringComparison.OrdinalIgnoreCase)
             });
         }
         OnPropertyChanged(nameof(AllColumnsVisible));
@@ -613,6 +958,8 @@ public sealed class MainViewModel : ObservableObject
     {
         var s = _settings.Load();
         RowLimit = s.RowLimit > 0 ? s.RowLimit : 1000;
+        LiveIntervalSeconds = s.LiveIntervalSeconds > 0 ? s.LiveIntervalSeconds : 5;
+        IsLiveMode = s.LiveMode;
         if (s.LastConnection is not null)
         {
             Connection = s.LastConnection.Clone();
@@ -627,10 +974,19 @@ public sealed class MainViewModel : ObservableObject
         var snapshot = new AppSettings
         {
             RowLimit = RowLimit,
+            LiveMode = IsLiveMode,
+            LiveIntervalSeconds = LiveIntervalSeconds,
             LastConnection = StripPassword(Connection),
             RecentConnections = RecentConnections.Select(StripPassword).ToList()
         };
         _settings.Save(snapshot);
+    }
+
+    /// <summary>Called when the window closes: stop polling before the app tears down.</summary>
+    public void Shutdown()
+    {
+        _live.Dispose();
+        IsLiveRunning = false;
     }
 
     private static ConnectionSettings StripPassword(ConnectionSettings c)
@@ -640,3 +996,6 @@ public sealed class MainViewModel : ObservableObject
         return clone;
     }
 }
+
+/// <summary>One entry in the real-time interval combo: seconds plus its Russian label.</summary>
+public sealed record LiveIntervalOption(int Seconds, string Label);

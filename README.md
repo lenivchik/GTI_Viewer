@@ -64,6 +64,7 @@ FirebirdViewer.sln
     ├── Services/
     │   ├── IFirebirdService.cs           data-layer abstraction
     │   ├── FirebirdService.cs            FbConnection / FbDataAdapter implementation
+    │   ├── LiveDataService.cs            polling heartbeat behind «Реальное время»
     │   ├── ISettingsService.cs           settings persistence abstraction
     │   └── SettingsService.cs            JSON in %APPDATA%\FirebirdViewer
     ├── Commands/
@@ -111,6 +112,37 @@ Recent connections are saved (without passwords) under
 `%APPDATA%\FirebirdViewer\settings.json` and appear under
 `Файл → Недавние подключения` — clicking one re-opens the dialog pre-filled.
 
+## Реальное время
+
+By default the app reads an archive: the selected well and race are queried once
+and the screen then stays as it was, however much the registrar writes afterwards.
+The **Реальное время** checkbox in the toolbar (also `Показать → Реальное время`,
+or **F9**) keeps that view current.
+
+While it is on, every few seconds the app asks the server for the records written
+since the previous poll — `WHERE REC_HEADER_ID > <watermark>` — and splices them
+onto the top of the table already on screen. Nothing is re-read, so a poll costs
+the new rows and nothing more.
+
+| Что обновляется                                                       | Как часто                        |
+| --------------------------------------------------------------------- | -------------------------------- |
+| Новые записи в таблице и на графиках                                   | выбранный интервал (1 с … 1 мин) |
+| Значения, дописанные задним числом (газовый анализ идёт с отставанием) | раз в 30 с, последние 200 записей |
+| Операции, инструмент, список рейсов                                    | раз в 30 с                       |
+
+- The indicator next to the checkbox is green only while polling actually runs;
+  the status bar shows the time of the last poll and how many records arrived.
+- The table keeps at most **Показывать записей** rows: as new ones arrive at the
+  top, the oldest fall off the bottom.
+- Charts follow the newest data if you left them at the live edge, and hold still
+  if you zoomed into an older interval — reading history is never interrupted.
+- Switching well or race, `Обновить` (F5) and reconnecting all re-read the window
+  in full and restart the watermark from there.
+- Polling never opens a modal dialog. Errors go to the status bar; after three
+  failures in a row real-time mode switches itself off and says why once.
+- The state of the checkbox and the interval are saved, so the app comes back in
+  the mode you left it in.
+
 ## Features
 
 - Modal connection dialog with field validation
@@ -120,6 +152,8 @@ Recent connections are saved (without passwords) under
 - **Up / Down** to reorder columns; **Все** (tri-state) to toggle all on/off
 - **Status bar cursor** showing the currently focused cell (row, column name,
   value)
+- **Реальное время** — polls for new records and keeps the table, the charts and
+  the counters moving as drilling goes on (F9)
 - **Графики** tab — placeholder, ready to wire a chart library
 - **Схема** tab — sub-tabs for Колонки and Индексы
 - **SQL** tab — multi-line editor; F5 runs it
@@ -141,6 +175,19 @@ Recent connections are saved (without passwords) under
   column header + cell value, formatted in Russian for the status bar.
 - The "Все" checkbox is genuinely tri-state — it shows an indeterminate
   visual when some columns are visible and others aren't.
+
+- Real-time mode is a `DispatcherTimer` in `LiveDataService`: ticks land on the UI
+  thread, a tick is skipped while the previous poll is still awaiting the database,
+  and `Stop()` cancels the token the poll was handed.
+- `REC_HEADER_ID` is selected into the drilling-data query purely as the polling
+  watermark. It gets a column checkbox like any other field but starts hidden.
+- The incremental query orders **ascending** so `FIRST n` keeps the rows right
+  after the watermark: a burst larger than the row limit is delivered in order
+  over the following polls instead of leaving a hole in the history.
+- `ChartPlotBinder` captures the independent axis before a live redraw and puts it
+  back afterwards, sliding it forward only when the window was parked at the newest
+  point — that is what makes the charts behave like strip charts without fighting
+  a user who scrolled back.
 
 ## Troubleshooting
 

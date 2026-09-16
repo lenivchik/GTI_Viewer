@@ -24,7 +24,16 @@ public interface IFirebirdService : IAsyncDisposable
     Task<IReadOnlyList<RaceInfo>> GetRacesAsync(long wellId, CancellationToken ct = default);
 
     /// <summary>Wide drilling data: REC_HEADERS joined with REC_COMMON and REC_LAG, filtered by well/race.</summary>
+    /// <remarks>The first column is REC_HEADER_ID — the watermark <see cref="GetRaceDataSinceAsync"/> reads from.</remarks>
     Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Rows written after <paramref name="afterRecHeaderId"/>, oldest first — the incremental
+    /// read behind real-time mode. Same columns as <see cref="GetRaceDataAsync"/>, so the
+    /// result can be spliced onto a table that is already on screen. Returns an empty table
+    /// when the registrar has not written anything new.
+    /// </summary>
+    Task<DataTable> GetRaceDataSinceAsync(long wellId, long? raceId, long afterRecHeaderId, int maxRows, CancellationToken ct = default);
 
     /// <summary>Operations (операции) for a given well, optionally restricted to a race.</summary>
     Task<DataTable> GetOperationsAsync(long wellId, long? raceId, CancellationToken ct = default);

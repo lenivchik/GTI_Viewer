@@ -86,4 +86,19 @@
         <Setter Property="Padding" Value="14,6"/>
     </Style>
 
+    <!-- ===== Real-time indicator ===== -->
+    <!-- Grey while polling is off, green while new records are being pulled in.
+         Bound to MainViewModel.IsLiveRunning, so it shows what the app is really
+         doing rather than what the checkbox says. -->
+    <Style x:Key="LiveIndicator" TargetType="Ellipse">
+        <Setter Property="Fill" Value="#C4C4CC"/>
+        <Setter Property="ToolTip" Value="Реальное время выключено"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsLiveRunning}" Value="True">
+                <Setter Property="Fill" Value="#3CB371"/>
+                <Setter Property="ToolTip" Value="Реальное время включено"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

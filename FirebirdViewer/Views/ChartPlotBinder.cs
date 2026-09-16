@@ -51,7 +51,8 @@ public sealed class ChartPlotBinder : IDisposable
         _plot = plot;
         _vm = vm;
 
-        _vm.RenderRequested += Render;
+        _vm.RenderRequested += RenderFull;
+        _vm.LiveRenderRequested += RenderLive;
         _vm.SelectionCleared += OnSelectionCleared;
         _vm.ZoomRequested += OnZoom;
         _vm.ZoomResetRequested += OnZoomReset;
@@ -63,12 +64,13 @@ public sealed class ChartPlotBinder : IDisposable
         _plot.PreviewMouseWheel += OnMouseWheel;
         _plot.MouseLeave += OnMouseLeave;
 
-        Render();
+        RenderFull();
     }
 
     public void Dispose()
     {
-        _vm.RenderRequested -= Render;
+        _vm.RenderRequested -= RenderFull;
+        _vm.LiveRenderRequested -= RenderLive;
         _vm.SelectionCleared -= OnSelectionCleared;
         _vm.ZoomRequested -= OnZoom;
         _vm.ZoomResetRequested -= OnZoomReset;
@@ -124,7 +126,7 @@ public sealed class ChartPlotBinder : IDisposable
     }
 
     /// <summary>Back to the full data range (a full re-render also restores the axis rules).</summary>
-    private void OnZoomReset() => Render();
+    private void OnZoomReset() => RenderFull();
 
     private void OnMouseLeave(object sender, MouseEventArgs e) => _vm.CursorText = null;
 
@@ -180,10 +182,26 @@ public sealed class ChartPlotBinder : IDisposable
     // Rendering
     // ============================================================
 
-    private void Render()
+    /// <summary>Redraw and autoscale — the view jumps to the full data range.</summary>
+    private void RenderFull() => Render(preserveWindow: false);
+
+    /// <summary>Redraw after a real-time append, keeping the window the user is looking at.</summary>
+    private void RenderLive() => Render(preserveWindow: true);
+
+    private void Render(bool preserveWindow)
     {
         var snap = _vm.GetSnapshot();
         var plot = _plot.Plot;
+
+        // Where the operator was looking before the plot is rebuilt. The orientation cannot
+        // change on a real-time redraw, so the independent axis is the same one either side.
+        double prevMin = double.NaN, prevMax = double.NaN;
+        if (preserveWindow)
+        {
+            var prevAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Left : plot.Axes.Bottom;
+            prevMin = prevAxis.Min;
+            prevMax = prevAxis.Max;
+        }
 
         // Reset: remove plottables, the axes we added last time, and any rules.
         plot.Clear();
@@ -309,10 +327,73 @@ public sealed class ChartPlotBinder : IDisposable
             }
         }
 
+        var (dataLow, dataHigh) = IndependentExtent(snap);
+        if (preserveWindow) RestoreIndependentWindow(plot, snap, prevMin, prevMax, dataLow, dataHigh);
+        _lastDataHigh = dataHigh;
+
         // The built-in legend is hidden: the window shows a clickable WPF legend
         // strip above the plot instead, where colour / line type / thickness are edited.
         plot.HideLegend();
         _plot.Refresh();
+    }
+
+    // ============================================================
+    // Following live data
+    // ============================================================
+
+    /// <summary>Newest value on the independent axis at the previous render.</summary>
+    private double _lastDataHigh = double.NaN;
+
+    /// <summary>
+    /// How close to the newest point the window has to end for the chart to count as
+    /// "parked at the live edge", as a fraction of the visible window width.
+    /// </summary>
+    private const double FollowTolerance = 0.05;
+
+    private static (double Low, double High) IndependentExtent(ChartSnapshot snap)
+    {
+        double low = double.PositiveInfinity, high = double.NegativeInfinity;
+        foreach (var s in snap.Series)
+        {
+            foreach (var v in s.Independent)
+            {
+                if (v < low) low = v;
+                if (v > high) high = v;
+            }
+        }
+        return (low, high);
+    }
+
+    /// <summary>
+    /// Keep the zoom across a real-time redraw. A window parked at the newest data slides
+    /// forward to follow it, like a strip chart; one the user scrolled back into history
+    /// stays exactly where it was, so reading an old interval is not interrupted every few
+    /// seconds. A window that already spans everything is left to the fresh autoscale.
+    /// </summary>
+    private void RestoreIndependentWindow(
+        ScottPlot.Plot plot, ChartSnapshot snap, double prevMin, double prevMax, double dataLow, double dataHigh)
+    {
+        if (!double.IsFinite(prevMin) || !double.IsFinite(prevMax) || prevMin == prevMax) return;
+        if (!double.IsFinite(dataLow) || !double.IsFinite(dataHigh) || dataHigh <= dataLow) return;
+
+        // In vertical mode the independent axis is inverted, so Min > Max; keep that.
+        bool inverted = prevMin > prevMax;
+        double low  = Math.Min(prevMin, prevMax);
+        double high = Math.Max(prevMin, prevMax);
+        double width = high - low;
+        if (width >= dataHigh - dataLow) return;   // everything was visible — autoscale is right
+
+        bool atLiveEdge = !double.IsFinite(_lastDataHigh)
+                          || high >= _lastDataHigh - width * FollowTolerance;
+
+        // Leave the newest point just short of the edge instead of flush against it.
+        double lead = width * 0.02;
+        double newHigh = atLiveEdge ? dataHigh + lead : high;
+        double newLow  = atLiveEdge ? dataHigh + lead - width : low;
+
+        var axis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Left : plot.Axes.Bottom;
+        axis.Min = inverted ? newHigh : newLow;
+        axis.Max = inverted ? newLow  : newHigh;
     }
 
     // ============================================================

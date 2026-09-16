@@ -15,6 +15,7 @@
     <Window.InputBindings>
         <KeyBinding Key="F5"                      Command="{Binding RefreshCommand}"/>
         <KeyBinding Key="F5" Modifiers="Control"  Command="{Binding RefreshCommand}"/>
+        <KeyBinding Key="F9"                      Command="{Binding ToggleLiveCommand}"/>
     </Window.InputBindings>
 
     <DockPanel>
@@ -53,6 +54,9 @@
                 <MenuItem Header="Переместить колонку в_низ"   Command="{Binding MoveColumnDownCommand}"/>
                 <Separator/>
                 <MenuItem Header="_Обновить данные"  Command="{Binding RefreshCommand}" InputGestureText="F5"/>
+                <MenuItem Header="_Реальное время" IsCheckable="True" InputGestureText="F9"
+                          IsChecked="{Binding IsLiveMode, Mode=TwoWay}"
+                          ToolTip="Автоматически подтягивать новые записи из базы"/>
             </MenuItem>
 
             <MenuItem Header="_Справка">
@@ -78,6 +82,24 @@
             <Separator/>
             <StatusBarItem><TextBlock Text="{Binding ToolsCountText}"/></StatusBarItem>
             <Separator/>
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <!-- Nothing to say while real-time mode is off. -->
+                                <DataTrigger Binding="{Binding LiveStatusText}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,6,0"
+                             Style="{StaticResource LiveIndicator}"/>
+                    <TextBlock Text="{Binding LiveStatusText}"/>
+                </StackPanel>
+            </StatusBarItem>
+            <Separator/>
             <StatusBarItem><TextBlock Text="{Binding CursorText}" Foreground="{StaticResource MutedForeground}"/></StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <TextBlock Text="{Binding ConnectionInfoText}" Foreground="{StaticResource MutedForeground}" Margin="0,0,8,0"/>
@@ -90,6 +112,20 @@
             <DockPanel>
                 <!-- Right: row limit + refresh -->
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,6,0"
+                             Style="{StaticResource LiveIndicator}"/>
+                    <CheckBox Content="Реальное время" VerticalAlignment="Center" Margin="0,0,6,0"
+                              IsChecked="{Binding IsLiveMode, Mode=TwoWay}"
+                              IsEnabled="{Binding IsConnected}"
+                              ToolTip="Автоматически подтягивать новые записи по мере их появления в базе (F9)"/>
+                    <ComboBox Width="76" VerticalAlignment="Center" Margin="0,0,16,0"
+                              ItemsSource="{Binding Source={x:Static vm:MainViewModel.LiveIntervalOptions}}"
+                              DisplayMemberPath="Label"
+                              SelectedValuePath="Seconds"
+                              SelectedValue="{Binding LiveIntervalSeconds, Mode=TwoWay}"
+                              IsEnabled="{Binding IsLiveMode}"
+                              ToolTip="Как часто опрашивать базу"/>
+
                     <TextBlock Text="Показывать записей:" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding RowLimit, UpdateSourceTrigger=LostFocus}" Width="70"
                              ToolTip="Максимальное число строк, загружаемых из базы"/>

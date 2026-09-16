@@ -112,16 +112,11 @@ public sealed class FirebirdService : IFirebirdService
         return list;
     }
 
-    public async Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default)
-    {
-        EnsureConnected();
-        if (rowLimit <= 0) rowLimit = 1000;
-        var raceFilter = raceId.HasValue ? "AND r.RACE_ID = @raceId" : string.Empty;
-
-        // Wide row containing the most useful drilling parameters from REC_HEADERS,
-        // REC_COMMON and REC_LAG. All friendly Russian names are mapped in FriendlyNames.
-        var sql = $@"
-            SELECT FIRST {rowLimit}
+    // Column list and joins shared by the full read and by the incremental read that
+    // real-time mode uses. REC_HEADER_ID leads the list on purpose: it is the watermark
+    // that lets polling ask the server only for rows written since the previous read.
+    private const string RaceDataColumns = @"
+                   h.REC_HEADER_ID,
                    h.REC_TIME,
                    h.BOTTOM_DEPTH,
                    h.BIT_DEPTH,
@@ -146,19 +141,58 @@ public sealed class FirebirdService : IFirebirdService
                    c.VOLUME1, c.VOLUME2, c.VOLUME3, c.VOLUME4, c.VOLUME5, c.VOLUME6,
                    c.ACTIVE_VOLUME,
                    l.C1, l.C2, l.C3, l.C4, l.C5, l.C6,
-                   l.SUMM_GAZ, l.SUMM_INT
+                   l.SUMM_GAZ, l.SUMM_INT";
+
+    private const string RaceDataFrom = @"
             FROM REC_HEADERS h
             JOIN RACES r        ON r.RACE_ID = h.RACE_ID
             LEFT JOIN REC_COMMON c ON c.REC_HEADER_ID = h.REC_HEADER_ID
-            LEFT JOIN REC_LAG    l ON l.REC_HEADER_ID = h.REC_HEADER_ID
+            LEFT JOIN REC_LAG    l ON l.REC_HEADER_ID = h.REC_HEADER_ID";
+
+    public async Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        if (rowLimit <= 0) rowLimit = 1000;
+        var raceFilter = raceId.HasValue ? "AND r.RACE_ID = @raceId" : string.Empty;
+
+        // Wide row containing the most useful drilling parameters from REC_HEADERS,
+        // REC_COMMON and REC_LAG. All friendly Russian names are mapped in FriendlyNames.
+        var sql = $@"
+            SELECT FIRST {rowLimit}{RaceDataColumns}{RaceDataFrom}
             WHERE r.WELL_ID = @wellId
               {raceFilter}
             ORDER BY h.REC_HEADER_ID DESC";
 
+        return await FillRaceDataAsync(sql, wellId, raceId, null, ct).ConfigureAwait(false);
+    }
+
+    public async Task<DataTable> GetRaceDataSinceAsync(long wellId, long? raceId, long afterRecHeaderId, int maxRows, CancellationToken ct = default)
+    {
+        EnsureConnected();
+        if (maxRows <= 0) maxRows = 1000;
+        var raceFilter = raceId.HasValue ? "AND r.RACE_ID = @raceId" : string.Empty;
+
+        // Oldest-first, unlike the full read: FIRST then keeps the rows immediately after
+        // the watermark, so a burst that exceeds maxRows is delivered in order over the
+        // following polls instead of leaving a hole in the middle of the history.
+        var sql = $@"
+            SELECT FIRST {maxRows}{RaceDataColumns}{RaceDataFrom}
+            WHERE r.WELL_ID = @wellId
+              AND h.REC_HEADER_ID > @afterId
+              {raceFilter}
+            ORDER BY h.REC_HEADER_ID";
+
+        return await FillRaceDataAsync(sql, wellId, raceId, afterRecHeaderId, ct).ConfigureAwait(false);
+    }
+
+    private async Task<DataTable> FillRaceDataAsync(
+        string sql, long wellId, long? raceId, long? afterRecHeaderId, CancellationToken ct)
+    {
         var dt = new DataTable("RaceData");
         await using var cmd = new FbCommand(sql, _connection);
         cmd.Parameters.AddWithValue("wellId", wellId);
         if (raceId.HasValue) cmd.Parameters.AddWithValue("raceId", raceId.Value);
+        if (afterRecHeaderId.HasValue) cmd.Parameters.AddWithValue("afterId", afterRecHeaderId.Value);
         using var adapter = new FbDataAdapter(cmd);
         await Task.Run(() => adapter.Fill(dt), ct).ConfigureAwait(false);
         return dt;
