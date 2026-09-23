@@ -334,6 +334,13 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private bool _inLivePoll;
 
+    /// <summary>
+    /// Depth of the loads the operator asked for (connect, well, race, F5). A poll steps
+    /// aside while one is running: the data it would read is already on its way, and the
+    /// two of them would otherwise be queued against the same connection back to back.
+    /// </summary>
+    private int _loadDepth;
+
     /// <summary>Polling intervals offered in the toolbar.</summary>
     public static IReadOnlyList<LiveIntervalOption> LiveIntervalOptions { get; } = new[]
     {
@@ -413,6 +420,9 @@ public sealed class MainViewModel : ObservableObject
         var well = SelectedWell;
         if (!IsConnected || well is null) { StopLive(); return; }
 
+        // A load the operator asked for is in flight; it brings this data anyway.
+        if (_loadDepth > 0) return;
+
         var raceId = CurrentRaceId;
         _inLivePoll = true;
         try
@@ -421,7 +431,11 @@ public sealed class MainViewModel : ObservableObject
             var fullRead = false;
             if (CurrentTableData?.Table is { } table && _lastRecHeaderId > 0)
             {
-                var fresh = await _db.GetRaceDataSinceAsync(well.WellId, raceId, _lastRecHeaderId, RowLimit, ct)
+                // The poll's token is deliberately not handed to the database layer: the
+                // Firebird client cannot cleanly abandon a command it has already sent, and
+                // a half-read answer left on the socket breaks the next one. It is checked
+                // between calls instead — that is what StillSelected does.
+                var fresh = await _db.GetRaceDataSinceAsync(well.WellId, raceId, _lastRecHeaderId, RowLimit)
                                      .ConfigureAwait(true);
                 if (!StillSelected(well, raceId, ct)) return;
                 appended = AppendFreshRows(table, fresh);
@@ -430,7 +444,7 @@ public sealed class MainViewModel : ObservableObject
             {
                 // Nothing on screen to append onto (the selection has just changed, or the
                 // previous read failed) — read the window in full and start a new watermark.
-                var dt = await _db.GetRaceDataAsync(well.WellId, raceId, RowLimit, ct).ConfigureAwait(true);
+                var dt = await _db.GetRaceDataAsync(well.WellId, raceId, RowLimit).ConfigureAwait(true);
                 if (!StillSelected(well, raceId, ct)) return;
                 ApplyRaceData(dt);
                 appended = dt.Rows.Count;
@@ -482,7 +496,8 @@ public sealed class MainViewModel : ObservableObject
                 IsLiveMode = false;                       // ApplyLiveMode stops the timer
                 StopLive($"Реальное время выключено: {_livePollFailures} ошибки подряд");
                 MessageBox.Show(
-                    $"Автообновление остановлено после {_livePollFailures} неудачных попыток подряд.\n\n{message}",
+                    $"Автообновление остановлено после {_livePollFailures} неудачных попыток подряд.\n\n{message}"
+                    + "\n\nЕсли ошибка повторяется, переподключитесь: Файл → Подключиться к базе...",
                     "Реальное время", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -540,7 +555,7 @@ public sealed class MainViewModel : ObservableObject
         if (!target.Columns.Contains(RecIdColumn)) return 0;
 
         var rows = RowLimit > 0 ? Math.Min(RecentRefreshRows, RowLimit) : RecentRefreshRows;
-        var fresh = await _db.GetRaceDataAsync(wellId, raceId, rows, ct).ConfigureAwait(true);
+        var fresh = await _db.GetRaceDataAsync(wellId, raceId, rows).ConfigureAwait(true);
         if (ct.IsCancellationRequested || !fresh.Columns.Contains(RecIdColumn)) return 0;
 
         var byId = new Dictionary<long, DataRow>(target.Rows.Count);
@@ -572,7 +587,7 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     private async Task RefreshRaceListAsync(long wellId, CancellationToken ct)
     {
-        var list = await _db.GetRacesAsync(wellId, ct).ConfigureAwait(true);
+        var list = await _db.GetRacesAsync(wellId).ConfigureAwait(true);
         if (ct.IsCancellationRequested) return;
 
         var known = new HashSet<long>(Races.Select(r => r.RaceId));
@@ -638,6 +653,8 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task<bool> ConnectAsync(ConnectionSettings settings)
     {
+        StopLive();   // a poll from the previous connection must not outlive it
+        _loadDepth++;
         try
         {
             StatusText = "Подключение...";
@@ -664,6 +681,10 @@ public sealed class MainViewModel : ObservableObject
             MessageBox.Show(ex.Message, "Ошибка подключения",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
+        }
+        finally
+        {
+            _loadDepth--;
         }
     }
 
@@ -742,6 +763,7 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        _loadDepth++;
         try
         {
             var list = await _db.GetRacesAsync(SelectedWell.WellId).ConfigureAwait(true);
@@ -755,6 +777,10 @@ public sealed class MainViewModel : ObservableObject
         {
             MessageBox.Show(ex.Message, "Ошибка чтения рейсов",
                 MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _loadDepth--;
         }
     }
 
@@ -770,9 +796,17 @@ public sealed class MainViewModel : ObservableObject
         }
 
         var raceId = CurrentRaceId;
-        await LoadRaceDataAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
-        await LoadOperationsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
-        await LoadToolsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+        _loadDepth++;
+        try
+        {
+            await LoadRaceDataAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+            await LoadOperationsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+            await LoadToolsAsync(SelectedWell.WellId, raceId).ConfigureAwait(true);
+        }
+        finally
+        {
+            _loadDepth--;
+        }
 
         // The archive for this selection is on screen; from here real-time mode keeps it current.
         ApplyLiveMode();

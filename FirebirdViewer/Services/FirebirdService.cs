@@ -8,6 +8,15 @@ public sealed class FirebirdService : IFirebirdService
 {
     private FbConnection? _connection;
 
+    /// <summary>
+    /// One Firebird connection carries one request/response conversation. Two commands in
+    /// flight at once interleave on the socket, the client then reads an operation code
+    /// where it expected a response and throws «operation = N». Real-time polling runs
+    /// alongside whatever the operator is doing, so every call takes this gate and the
+    /// connection is used by one caller at a time.
+    /// </summary>
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
     public bool IsConnected => _connection?.State == ConnectionState.Open;
     public string? ServerVersion { get; private set; }
 
@@ -16,7 +25,21 @@ public sealed class FirebirdService : IFirebirdService
     public async Task ConnectAsync(ConnectionSettings settings, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        await DisconnectAsync().ConfigureAwait(false);
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await OpenConnectionAsync(settings, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Caller holds <see cref="_gate"/>.</summary>
+    private async Task OpenConnectionAsync(ConnectionSettings settings, CancellationToken ct)
+    {
+        await CloseConnectionAsync().ConfigureAwait(false);
 
         var csb = new FbConnectionStringBuilder
         {
@@ -39,6 +62,21 @@ public sealed class FirebirdService : IFirebirdService
 
     public async Task DisconnectAsync()
     {
+        // Best-effort, as before: if a query is wedged, close anyway rather than hang.
+        var acquired = await _gate.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        try
+        {
+            await CloseConnectionAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            if (acquired) _gate.Release();
+        }
+    }
+
+    /// <summary>Caller holds <see cref="_gate"/>.</summary>
+    private async Task CloseConnectionAsync()
+    {
         if (_connection is null) return;
         try
         {
@@ -59,9 +97,11 @@ public sealed class FirebirdService : IFirebirdService
 
     // ===== GTI queries =====
 
-    public async Task<IReadOnlyList<WellInfo>> GetWellsAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<WellInfo>> GetWellsAsync(CancellationToken ct = default)
+        => GatedAsync(() => ReadWellsAsync(ct), ct);
+
+    private async Task<IReadOnlyList<WellInfo>> ReadWellsAsync(CancellationToken ct)
     {
-        EnsureConnected();
         const string sql = @"
             SELECT WELL_ID,
                    COALESCE(NAME, 'Скважина ' || CAST(WELL_ID AS VARCHAR(30))) AS WELL_NAME,
@@ -84,9 +124,11 @@ public sealed class FirebirdService : IFirebirdService
         return list;
     }
 
-    public async Task<IReadOnlyList<RaceInfo>> GetRacesAsync(long wellId, CancellationToken ct = default)
+    public Task<IReadOnlyList<RaceInfo>> GetRacesAsync(long wellId, CancellationToken ct = default)
+        => GatedAsync(() => ReadRacesAsync(wellId, ct), ct);
+
+    private async Task<IReadOnlyList<RaceInfo>> ReadRacesAsync(long wellId, CancellationToken ct)
     {
-        EnsureConnected();
         const string sql = @"
             SELECT FIRST 200
                    RACE_ID, WELL_ID, NUMBER, START_TIME, STOP_TIME
@@ -149,9 +191,11 @@ public sealed class FirebirdService : IFirebirdService
             LEFT JOIN REC_COMMON c ON c.REC_HEADER_ID = h.REC_HEADER_ID
             LEFT JOIN REC_LAG    l ON l.REC_HEADER_ID = h.REC_HEADER_ID";
 
-    public async Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default)
+    public Task<DataTable> GetRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct = default)
+        => GatedAsync(() => ReadRaceDataAsync(wellId, raceId, rowLimit, ct), ct);
+
+    private async Task<DataTable> ReadRaceDataAsync(long wellId, long? raceId, int rowLimit, CancellationToken ct)
     {
-        EnsureConnected();
         if (rowLimit <= 0) rowLimit = 1000;
         var raceFilter = raceId.HasValue ? "AND r.RACE_ID = @raceId" : string.Empty;
 
@@ -166,9 +210,11 @@ public sealed class FirebirdService : IFirebirdService
         return await FillRaceDataAsync(sql, wellId, raceId, null, ct).ConfigureAwait(false);
     }
 
-    public async Task<DataTable> GetRaceDataSinceAsync(long wellId, long? raceId, long afterRecHeaderId, int maxRows, CancellationToken ct = default)
+    public Task<DataTable> GetRaceDataSinceAsync(long wellId, long? raceId, long afterRecHeaderId, int maxRows, CancellationToken ct = default)
+        => GatedAsync(() => ReadRaceDataSinceAsync(wellId, raceId, afterRecHeaderId, maxRows, ct), ct);
+
+    private async Task<DataTable> ReadRaceDataSinceAsync(long wellId, long? raceId, long afterRecHeaderId, int maxRows, CancellationToken ct)
     {
-        EnsureConnected();
         if (maxRows <= 0) maxRows = 1000;
         var raceFilter = raceId.HasValue ? "AND r.RACE_ID = @raceId" : string.Empty;
 
@@ -198,9 +244,11 @@ public sealed class FirebirdService : IFirebirdService
         return dt;
     }
 
-    public async Task<DataTable> GetOperationsAsync(long wellId, long? raceId, CancellationToken ct = default)
+    public Task<DataTable> GetOperationsAsync(long wellId, long? raceId, CancellationToken ct = default)
+        => GatedAsync(() => ReadOperationsAsync(wellId, raceId, ct), ct);
+
+    private async Task<DataTable> ReadOperationsAsync(long wellId, long? raceId, CancellationToken ct)
     {
-        EnsureConnected();
         // Filter by RACE_ID when one is selected. RACES is joined just for the predicate.
         var raceJoin   = raceId.HasValue ? "JOIN RACES r ON r.WELL_ID = o.WELL_ID AND r.RACE_ID = @raceId" : "";
         var raceFilter = raceId.HasValue ? "AND o.START_TIME >= r.START_TIME AND (r.STOP_TIME IS NULL OR o.START_TIME <= r.STOP_TIME)" : "";
@@ -238,9 +286,11 @@ public sealed class FirebirdService : IFirebirdService
         return dt;
     }
 
-    public async Task<DataTable> GetToolsAsync(long wellId, long? raceId, CancellationToken ct = default)
+    public Task<DataTable> GetToolsAsync(long wellId, long? raceId, CancellationToken ct = default)
+        => GatedAsync(() => ReadToolsAsync(wellId, raceId, ct), ct);
+
+    private async Task<DataTable> ReadToolsAsync(long wellId, long? raceId, CancellationToken ct)
     {
-        EnsureConnected();
         var raceFilter = raceId.HasValue ? "AND b.RACE_ID = @raceId" : string.Empty;
 
         // Инструмент = компоновка бурильной колонны по рейсам. BOTTOM_HOLE_ASSEMBLY хранит
@@ -282,9 +332,11 @@ public sealed class FirebirdService : IFirebirdService
         return dt;
     }
 
-    public async Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<ParamCatalogRow>> GetParameterCatalogAsync(CancellationToken ct = default)
+        => GatedAsync(() => ReadParameterCatalogAsync(ct), ct);
+
+    private async Task<IReadOnlyList<ParamCatalogRow>> ReadParameterCatalogAsync(CancellationToken ct)
     {
-        EnsureConnected();
         const string sql = @"
             SELECT REGISTR_VAR, FULL_NAME, SHORT_NAME, PARAM_UNIT, TABLE_NAME, TABLE_FIELD
             FROM PARAMS";
@@ -306,9 +358,34 @@ public sealed class FirebirdService : IFirebirdService
         return list;
     }
 
+    // ===== Serialization =====
+
+    /// <summary>
+    /// Run one database call with the connection to itself. Waiting on the gate is the
+    /// whole point: a real-time poll that arrives mid-query queues behind it instead of
+    /// corrupting the conversation both are having with the server.
+    /// </summary>
+    private async Task<T> GatedAsync<T>(Func<Task<T>> read, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            EnsureConnected();
+            return await read().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     // ===== Disposal =====
 
-    public async ValueTask DisposeAsync() => await DisconnectAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        await DisconnectAsync().ConfigureAwait(false);
+        _gate.Dispose();
+    }
 
     private void EnsureConnected()
     {

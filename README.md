@@ -179,6 +179,17 @@ the new rows and nothing more.
 - Real-time mode is a `DispatcherTimer` in `LiveDataService`: ticks land on the UI
   thread, a tick is skipped while the previous poll is still awaiting the database,
   and `Stop()` cancels the token the poll was handed.
+- **Every database call goes through a single-slot gate in `FirebirdService`.** One
+  Firebird connection is one request/response conversation: two commands in flight at
+  once interleave on the socket and the client throws `operation = N` (14, 9, …) when
+  it reads an operation code where a response should be. Polling runs alongside
+  whatever the operator is doing, so this is not optional — anything added to the
+  service must go through the gate too.
+- A poll also stands aside while a load the operator asked for (connect, well, race,
+  F5) is running, and it never hands its cancellation token to the database layer:
+  the Firebird client cannot cleanly abandon a command it has already sent, and a
+  half-read answer left on the socket breaks the next one. The token is checked
+  between calls instead.
 - `REC_HEADER_ID` is selected into the drilling-data query purely as the polling
   watermark. It gets a column checkbox like any other field but starts hidden.
 - The incremental query orders **ascending** so `FIRST n` keeps the rows right
