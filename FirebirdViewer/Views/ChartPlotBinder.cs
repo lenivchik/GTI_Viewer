@@ -37,10 +37,6 @@ public sealed class ChartPlotBinder : IDisposable
     private IPlottable? _pickMarker;
     private IPlottable? _pickLabel;
 
-    // Axes we added via AddLeftAxis/AddTopAxis. plot.Clear() removes plottables
-    // but not axes, so we must remove these ourselves before each re-render.
-    private readonly System.Collections.Generic.List<ScottPlot.IAxis> _addedAxes = new();
-
     // Each plotted curve with its scatter and the concrete axes it was drawn
     // against — used to hit-test double-clicks against every curve.
     private sealed record PlottedCurve(
@@ -183,6 +179,33 @@ public sealed class ChartPlotBinder : IDisposable
     // Rendering
     // ============================================================
 
+    /// <summary>
+    /// Discard every value axis left over from the previous render.
+    ///
+    /// ScottPlot keeps its four default axes (Bottom/Left/Top/Right) alive for the
+    /// lifetime of the plot, so any *other* axis present is one we added. We sweep the
+    /// plot itself rather than keeping our own bookkeeping list, and we both remove and
+    /// hide each one: when a stale axis survived, it kept drawing its caption and the
+    /// curve names piled up on the left — one extra copy per redraw, which is why the
+    /// chart that had been on screen longest (and polling in real-time mode) showed it
+    /// first.
+    /// </summary>
+    private void DropAddedAxes()
+    {
+        var plot = _plot.Plot;
+        foreach (var axis in plot.Axes.GetAxes().ToArray())
+        {
+            if (ReferenceEquals(axis, plot.Axes.Bottom) ||
+                ReferenceEquals(axis, plot.Axes.Left)   ||
+                ReferenceEquals(axis, plot.Axes.Top)    ||
+                ReferenceEquals(axis, plot.Axes.Right))
+                continue;
+
+            axis.IsVisible = false;   // in case Remove is a no-op on this ScottPlot build
+            plot.Axes.Remove(axis);
+        }
+    }
+
     /// <summary>Redraw and autoscale — the view jumps to the full data range.</summary>
     private void RenderFull() => Render(preserveWindow: false);
 
@@ -190,6 +213,27 @@ public sealed class ChartPlotBinder : IDisposable
     private void RenderLive() => Render(preserveWindow: true);
 
     private void Render(bool preserveWindow)
+    {
+        try
+        {
+            RenderCore(preserveWindow);
+        }
+        catch (Exception ex)
+        {
+            // Render runs inside the view-model's data-load try/catch, so an exception
+            // here would be reported as «Ошибка чтения данных» and leave a half-built
+            // plot (value axes added, series missing) behind. Clean up and say what
+            // actually happened instead of throwing back into the loader.
+            DropAddedAxes();
+            _plot.Plot.Clear();
+            _plotted.Clear();
+            _bandRect = _pickMarker = _pickLabel = null;
+            _vm.CursorText = $"Ошибка построения графика: {ex.Message}";
+            _plot.Refresh();
+        }
+    }
+
+    private void RenderCore(bool preserveWindow)
     {
         var snap = _vm.GetSnapshot();
         var plot = _plot.Plot;
@@ -206,8 +250,7 @@ public sealed class ChartPlotBinder : IDisposable
 
         // Reset: remove plottables, the axes we added last time, and any rules.
         plot.Clear();
-        foreach (var a in _addedAxes) plot.Axes.Remove(a);
-        _addedAxes.Clear();
+        DropAddedAxes();
         plot.Axes.Rules.Clear();
         _bandRect = null;
         _pickMarker = null;
@@ -236,9 +279,7 @@ public sealed class ChartPlotBinder : IDisposable
         // Vertical → Top (above the plot); horizontal → Left.
         ScottPlot.IAxis NewValueAxis()
         {
-            var a = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.AddTopAxis() : plot.Axes.AddLeftAxis();
-            _addedAxes.Add(a);
-            return a;
+            return snap.Vertical ? (ScottPlot.IAxis)plot.Axes.AddTopAxis() : plot.Axes.AddLeftAxis();
         }
 
         var valueAxes = new System.Collections.Generic.List<ScottPlot.IAxis>();
