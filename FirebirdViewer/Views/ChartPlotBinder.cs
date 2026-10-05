@@ -23,7 +23,8 @@ namespace FirebirdViewer.Views;
 ///   • plot.Axes.Rules.Add(new ScottPlot.AxisRules.LockedVertical/LockedHorizontal(axis))
 ///   • plot.Axes.AutoScale() / .InvertY() / .GetLimits()
 ///   • plot.Add.Rectangle(l, r, b, t) → Rectangle { FillStyle.Color, LineStyle.Color }
-///   • plot.Remove(plottable) / plot.GetCoordinates(Pixel) / wpfPlot.Refresh()
+///   • plot.Remove(plottable) / wpfPlot.Refresh()
+///   • plot.GetCoordinates(Pixel[, xAxis, yAxis]) / plot.GetPixel(Coordinates, xAxis, yAxis)
 /// </summary>
 public sealed class ChartPlotBinder : IDisposable
 {
@@ -43,7 +44,7 @@ public sealed class ChartPlotBinder : IDisposable
     // Each plotted curve with its scatter and the concrete axes it was drawn
     // against — used to hit-test double-clicks against every curve.
     private sealed record PlottedCurve(
-        ScottPlot.Plottables.Scatter Scatter, ScottPlot.IXAxis X, ScottPlot.IYAxis Y, ChartSeriesData Data);
+        ScottPlot.IXAxis X, ScottPlot.IYAxis Y, ChartSeriesData Data);
     private readonly System.Collections.Generic.List<PlottedCurve> _plotted = new();
 
     public ChartPlotBinder(WpfPlot plot, ChartPanelViewModel vm)
@@ -301,7 +302,7 @@ public sealed class ChartPlotBinder : IDisposable
             }
             scatter.Axes.XAxis = xAxisUsed;
             scatter.Axes.YAxis = yAxisUsed;
-            _plotted.Add(new PlottedCurve(scatter, xAxisUsed, yAxisUsed, s));
+            _plotted.Add(new PlottedCurve(xAxisUsed, yAxisUsed, s));
         }
 
         plot.Axes.AutoScale();
@@ -448,38 +449,47 @@ public sealed class ChartPlotBinder : IDisposable
     // Double-click → nearest vertex value (ScottPlot's Data.GetNearest)
     // ============================================================
 
+    /// <summary>How close to a vertex the pointer must be, in screen pixels.</summary>
+    private const double PickRadiusPx = 25;
+
     private void OnDoubleClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;   // suppress ScottPlot's default double-click action
         var mouse = MousePixel(e);
         var plot = _plot.Plot;
+        var vertical = _vm.Orientation == ChartOrientation.Vertical;
 
         double bestSq = double.MaxValue;
         PlottedCurve? best = null;
         int bestIndex = -1;
 
+        // We measure the distance ourselves rather than calling Scatter.Data.GetNearest.
+        // GetNearest derives pixels from plot.LastRender, which describes the *default*
+        // axes — but every curve here is bound to its own added value axis, so for all
+        // but one curve its distances came out on the wrong scale and the hit was
+        // rejected. Projecting each vertex through the curve's own axes is exact.
         foreach (var c in _plotted)
         {
-            // Mouse position in this curve's own axis space, then ask ScottPlot for
-            // the nearest actual data point (vertex) via the standard GetNearest.
-            var mouseCoord = plot.GetCoordinates(mouse, c.X, c.Y);
-            var nearest = c.Scatter.Data.GetNearest(mouseCoord, plot.LastRender);
-            if (!nearest.IsReal) continue;
+            var d = c.Data;
+            for (int i = 0; i < d.Values.Length; i++)
+            {
+                var xv = vertical ? d.Values[i]      : d.Independent[i];
+                var yv = vertical ? d.Independent[i] : d.Values[i];
 
-            // Disambiguate between curves by real pixel distance to the vertex.
-            var vpx = plot.GetPixel(new Coordinates(nearest.X, nearest.Y), c.X, c.Y);
-            var ddx = vpx.X - mouse.X;
-            var ddy = vpx.Y - mouse.Y;
-            var sq = ddx * ddx + ddy * ddy;
-            if (sq < bestSq) { bestSq = sq; best = c; bestIndex = nearest.Index; }
+                var px = plot.GetPixel(new Coordinates(xv, yv), c.X, c.Y);
+                var ddx = px.X - mouse.X;
+                var ddy = px.Y - mouse.Y;
+                var sq = ddx * ddx + ddy * ddy;
+                if (sq < bestSq) { bestSq = sq; best = c; bestIndex = i; }
+            }
         }
 
-        if (best is null || bestSq > 20 * 20)
+        if (best is null || bestSq > PickRadiusPx * PickRadiusPx)
         {
             ClearPick();    // double-clicking empty space dismisses the label
             return;
         }
-        ShowPoint(best, bestIndex, _vm.Orientation == ChartOrientation.Vertical);
+        ShowPoint(best, bestIndex, vertical);
     }
 
     private void ShowPoint(PlottedCurve c, int i, bool vertical)

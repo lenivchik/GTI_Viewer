@@ -187,7 +187,7 @@ public static class FriendlyNames
         // DRILL_STRING_ITEM_TYPE (типы элементов) и DRILL_STRING_ITEM (типоразмеры).
         ["TOOLS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
         {
-            ["TL_POS"]          = new("№",                   "",   "Позиция элемента в компоновке (BOTTOM_HOLE_ASSEMBLY.POS)."),
+            ["TL_POS"]          = new("№",                   "",   "Порядковый номер строки в списке."),
             ["TL_NAME"]         = new("Название",            "",   "Тип элемента колонны: свеча, долото, УБТ, забойный двигатель и т. д."),
             ["TL_BRAND"]        = new("Марка",               "",   "Конкретный типоразмер инструмента из справочника DRILL_STRING_ITEM."),
             ["TL_COUNT"]        = new("Кол-во",              "",   "Число одинаковых элементов в этой позиции."),

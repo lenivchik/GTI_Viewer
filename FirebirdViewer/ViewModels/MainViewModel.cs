@@ -862,6 +862,7 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var dt = await _db.GetToolsAsync(wellId, raceId).ConfigureAwait(true);
+            RenumberToolRows(dt);
             ToolsData = dt.DefaultView;
             ToolsCountText = $"Инструмент: {dt.Rows.Count}";
         }
@@ -873,6 +874,22 @@ public sealed class MainViewModel : ObservableObject
             MessageBox.Show(ex.Message, "Ошибка чтения инструмента",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>
+    /// Make the «№» column a running 1..N over the displayed list. The query returns
+    /// BOTTOM_HOLE_ASSEMBLY.POS, which restarts at 1 for every race — so with «Все рейсы»
+    /// the numbering repeated instead of counting the rows on screen.
+    /// </summary>
+    private static void RenumberToolRows(DataTable dt)
+    {
+        const string posColumn = "TL_POS";
+        if (!dt.Columns.Contains(posColumn)) return;
+
+        for (int i = 0; i < dt.Rows.Count; i++)
+            dt.Rows[i][posColumn] = i + 1;
+
+        dt.AcceptChanges();   // the rows are freshly read, not user edits
     }
 
     private void RebuildColumnVisibility(DataTable dt)
