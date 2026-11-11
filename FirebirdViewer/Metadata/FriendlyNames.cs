@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using FirebirdViewer.Localization;
 using FirebirdViewer.Models;
 
 namespace FirebirdViewer.Metadata;
@@ -7,9 +8,17 @@ namespace FirebirdViewer.Metadata;
 public sealed record ColumnInfo(string DisplayName, string Unit, string Description);
 
 /// <summary>
-/// Converts raw Firebird column identifiers into friendly Russian labels
-/// suitable for end users. The live PARAMS catalog is the primary source;
-/// the dictionaries below cover the columns PARAMS does not describe.
+/// Converts raw Firebird column identifiers into labels an end user can read, in the
+/// current interface language.
+///
+/// Parameter columns (REC_COMMON / REC_LAG) are described by the live PARAMS catalog.
+/// In Russian its FULL_NAME is shown exactly as stored. In other languages the name is
+/// looked up in the translation files by PARAMS.TABLE_FIELD (keys <c>Param_&lt;field&gt;</c>)
+/// and the database's Russian name stays in the tooltip; a parameter nobody translated
+/// yet keeps its Russian name rather than turning into a raw identifier.
+///
+/// The few columns PARAMS does not describe (record time and depths, and the aliases of
+/// the Инструменты / Операции queries) take their labels from <c>Col_&lt;FIELD&gt;</c> keys.
 /// </summary>
 public static class FriendlyNames
 {
@@ -22,41 +31,134 @@ public static class FriendlyNames
         if (!string.IsNullOrWhiteSpace(tableName)
             && _dynamicByTableField.TryGetValue((tableName.Trim(), col), out var fromParams1))
         {
-            return fromParams1;
+            return FromCatalog(fromParams1);
         }
         if (_dynamicByField.TryGetValue(col, out var fromParams2))
         {
-            return fromParams2;
+            return FromCatalog(fromParams2);
         }
 
-        // 2) Hardcoded per-table dictionary (REC_HEADERS, OPERATIONS_VIEW, etc.).
+        // 2) Built-in per-table columns (TOOLS_VIEW, OPERATIONS_VIEW).
         if (!string.IsNullOrWhiteSpace(tableName)
             && Columns.TryGetValue(tableName.Trim(), out var perTable)
-            && perTable.TryGetValue(col, out var info))
+            && perTable.TryGetValue(col, out var spec))
         {
-            return info;
+            return FromResources(spec);
         }
 
-        // 3) Common hardcoded fallback (IDs, time, depth).
-        if (Common.TryGetValue(col, out var common)) return common;
+        // 3) Record metadata present in every race-data table (ID, time, depths).
+        if (Common.TryGetValue(col, out var common)) return FromResources(common);
 
         // 4) Last resort: scan every per-table dictionary so joined views still resolve.
         if (string.IsNullOrWhiteSpace(tableName))
         {
             foreach (var dict in Columns.Values)
-                if (dict.TryGetValue(col, out var any)) return any;
+                if (dict.TryGetValue(col, out var any)) return FromResources(any);
         }
 
-        return null;
+        // 5) No catalog row (legacy database without PARAMS): a translation keyed by the
+        //    field name still beats the raw identifier.
+        var translated = TranslateParameter(col);
+        return translated is null ? null : new ColumnInfo(translated, "", "");
     }
+
+    public static string GetColumnDisplay(string? tableName, string? columnName)
+    {
+        var info = GetColumn(tableName, columnName);
+        if (info is null) return Prettify(columnName ?? string.Empty);
+        return string.IsNullOrEmpty(info.Unit)
+            ? info.DisplayName
+            : $"{info.DisplayName}, {info.Unit}";
+    }
+
+    public static string? GetColumnDescription(string? tableName, string? columnName)
+    {
+        var description = GetColumn(tableName, columnName)?.Description;
+        return string.IsNullOrWhiteSpace(description) ? null : description;
+    }
+
+    /// <summary>Friendly fallback for any unknown identifier: lower-case, replace _ with space, capitalize first letter.</summary>
+    public static string Prettify(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw ?? string.Empty;
+        var s = raw.Trim().Replace('_', ' ');
+        // For typical SQL identifiers this gives "MUD_PRESSURE" → "Mud pressure".
+        if (s.Length == 0) return s;
+        s = s.ToLower(CultureInfo.CurrentCulture);
+        return char.ToUpper(s[0], CultureInfo.CurrentCulture) + s.Substring(1);
+    }
+
+    // ============================================================
+    // Translation helpers
+    // ============================================================
+
+    /// <summary>
+    /// Translated parameter name for a PARAMS.TABLE_FIELD, or null in Russian (the database
+    /// name is used as is) and when no translation exists. A numbered field such as
+    /// <c>volume7</c> falls back to its family key <c>Param_volume_N</c> with {0} = 7.
+    /// </summary>
+    public static string? TranslateParameter(string? field)
+    {
+        if (Loc.IsNeutral || string.IsNullOrWhiteSpace(field)) return null;
+        var f = field.Trim().ToLowerInvariant();
+
+        var exact = Loc.TryT("Param_" + f);
+        if (exact is not null) return exact;
+
+        int digits = f.Length;
+        while (digits > 0 && char.IsAsciiDigit(f[digits - 1])) digits--;
+        if (digits == 0 || digits == f.Length) return null;
+
+        var family = Loc.TryT("Param_" + f[..digits] + "_N");
+        return family is null ? null : string.Format(Loc.Culture, family, f[digits..]);
+    }
+
+    /// <summary>
+    /// Unit in the current language. Units are keyed by the Russian spelling, hex-encoded
+    /// because they contain characters a resource key cannot (<c>/ * ° ³</c>): «м/ч» →
+    /// <c>Unit_043C002F0447</c>. A unit without a translation is shown as stored.
+    /// </summary>
+    public static string TranslateUnit(string? unit)
+    {
+        if (string.IsNullOrWhiteSpace(unit)) return unit ?? "";
+        if (Loc.IsNeutral) return unit;
+
+        var trimmed = unit.Trim();
+        var key = new System.Text.StringBuilder("Unit_", 5 + trimmed.Length * 4);
+        foreach (var ch in trimmed) key.Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
+        return Loc.TryT(key.ToString()) ?? unit;
+    }
+
+    private static ColumnInfo FromCatalog(ParamCatalogRow r)
+    {
+        var dbName = string.IsNullOrWhiteSpace(r.FullName) ? r.RegistrVar : r.FullName;
+        var dbDescription = string.IsNullOrWhiteSpace(r.ShortName)
+            ? (r.FullName ?? "")
+            : $"{r.FullName} ({r.ShortName})";
+
+        if (Loc.IsNeutral) return new ColumnInfo(dbName, r.Unit ?? "", dbDescription);
+
+        var unit = TranslateUnit(r.Unit);
+        var translated = TranslateParameter(r.TableField);
+        if (translated is null) return new ColumnInfo(dbName, unit, dbDescription);
+
+        // The Russian name stays in the tooltip: it is what GtiRealtimeCharts and the
+        // crew's paperwork call this parameter.
+        return new ColumnInfo(translated, unit, $"{translated}\n{dbDescription}");
+    }
+
+    private static ColumnInfo FromResources(ColumnSpec spec) =>
+        new(Loc.T(spec.Key), TranslateUnit(spec.Unit), Loc.TryT(spec.Key + "_Desc") ?? "");
 
     // ============================================================
     // Dynamic catalog (populated from the PARAMS table at connect time)
     // ============================================================
 
-    private static readonly Dictionary<(string Table, string Field), ColumnInfo> _dynamicByTableField
+    // The raw rows are kept rather than finished labels, so a language switch only needs
+    // the lookup to run again — no second trip to the database.
+    private static readonly Dictionary<(string Table, string Field), ParamCatalogRow> _dynamicByTableField
         = new(new TableFieldComparer());
-    private static readonly Dictionary<string, ColumnInfo> _dynamicByField
+    private static readonly Dictionary<string, ParamCatalogRow> _dynamicByField
         = new(System.StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -73,15 +175,9 @@ public static class FriendlyNames
         {
             if (string.IsNullOrWhiteSpace(r.TableField)) continue;
 
-            var display     = string.IsNullOrWhiteSpace(r.FullName) ? r.RegistrVar : r.FullName;
-            var description = string.IsNullOrWhiteSpace(r.ShortName)
-                ? (r.FullName ?? "")
-                : $"{r.FullName} ({r.ShortName})";
-            var info = new ColumnInfo(display, r.Unit ?? "", description);
-
-            _dynamicByField[r.TableField] = info;
+            _dynamicByField[r.TableField] = r;
             if (!string.IsNullOrWhiteSpace(r.TableName))
-                _dynamicByTableField[(r.TableName, r.TableField)] = info;
+                _dynamicByTableField[(r.TableName, r.TableField)] = r;
         }
     }
 
@@ -105,112 +201,56 @@ public static class FriendlyNames
         }
     }
 
-    public static string GetColumnDisplay(string? tableName, string? columnName)
-    {
-        var info = GetColumn(tableName, columnName);
-        if (info is null) return Prettify(columnName ?? string.Empty);
-        return string.IsNullOrEmpty(info.Unit)
-            ? info.DisplayName
-            : $"{info.DisplayName}, {info.Unit}";
-    }
-
-    public static string? GetColumnDescription(string? tableName, string? columnName)
-        => GetColumn(tableName, columnName)?.Description;
-
-    /// <summary>Friendly fallback for any unknown identifier: lower-case, replace _ with space, capitalize first letter.</summary>
-    public static string Prettify(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return raw ?? string.Empty;
-        var s = raw.Trim().Replace('_', ' ');
-        // Lower-case ASCII letters but keep already-capitalized non-ASCII (Russian) intact-looking.
-        // For typical SQL identifiers this gives "Mud Pressure" → "Mud pressure".
-        if (s.Length == 0) return s;
-        s = s.ToLower(CultureInfo.CurrentCulture);
-        return char.ToUpper(s[0], CultureInfo.CurrentCulture) + s.Substring(1);
-    }
-
     // ============================================================
-    // Columns common across many tables (fallback when table not found)
+    // Built-in columns. The label is the resource Key, the tooltip Key + "_Desc";
+    // the unit is the Russian spelling and goes through TranslateUnit like a PARAMS unit.
     // ============================================================
 
-    private static readonly Dictionary<string, ColumnInfo> Common = new(System.StringComparer.OrdinalIgnoreCase)
+    private sealed record ColumnSpec(string Key, string Unit);
+
+    private static ColumnSpec Spec(string field, string unit = "") => new("Col_" + field, unit);
+
+    /// <summary>Record metadata that the race-data query returns next to the parameters.</summary>
+    private static readonly Dictionary<string, ColumnSpec> Common = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        ["REC_TIME"]         = new("Время",                "",      "Момент регистрации записи."),
-        ["START_TIME"]       = new("Начало",               "",      "Время начала."),
-        ["STOP_TIME"]        = new("Окончание",            "",      "Время окончания."),
-        ["BOTTOM_DEPTH"]     = new("Глубина забоя",        "м",     "Глубина забоя скважины."),
-        ["BIT_DEPTH"]        = new("Глубина долота",       "м",     "Глубина положения долота."),
-        ["BOTTOM_LAG_DEPTH"] = new("Глубина забоя (лаг)",  "м",     "Глубина забоя с учётом отставания газового анализа."),
-        ["TOP_DEPTH"]        = new("Верхняя глубина",      "м",     "Верхняя граница интервала."),
-        ["WELL_ID"]          = new("Скважина (ID)",        "",      "Внутренний идентификатор скважины."),
-        ["RACE_ID"]          = new("Рейс (ID)",            "",      "Внутренний идентификатор рейса."),
-        ["REC_HEADER_ID"]    = new("Запись (ID)",          "",      "Внутренний идентификатор записи."),
-        ["REC_ID"]           = new("Запись (ID)",          "",      "Внутренний идентификатор записи."),
-        ["PARAM_ID"]         = new("Параметр (ID)",        "",      "Внутренний идентификатор параметра."),
-        ["NAME"]             = new("Название",             "",      "Название."),
-        ["FULL_NAME"]        = new("Полное название",      "",      "Развёрнутое название параметра."),
-        ["CLUSTER"]          = new("Куст",                 "",      "Название куста."),
-        ["NUMBER"]           = new("Номер",                "",      "Порядковый номер."),
-        ["COMMENT"]          = new("Комментарий",          "",      "Произвольный комментарий."),
-        ["IS_CURRENT"]       = new("Текущая",              "",      "Признак текущей скважины."),
-        ["REGISTR_VAR"]      = new("Имя параметра",        "",      "Системное имя параметра в каталоге."),
-        ["PARAM_UNIT"]       = new("Единица измерения",    "",      "Единица измерения параметра."),
-        ["TABLE_NAME"]       = new("Таблица-источник",     "",      "Таблица, в которой лежит значение."),
-        ["TABLE_FIELD"]      = new("Поле-источник",        "",      "Поле в таблице-источнике."),
-        ["PARAM_VALUE"]      = new("Значение",             "",      "Числовое значение параметра."),
-        ["OPER_ID"]          = new("Операция (ID)",        "",      "Идентификатор типа операции."),
-        ["USER_OPER_ID"]     = new("Польз. операция (ID)", "",      "Идентификатор пользовательской операции."),
-        ["TROUBLE_TYPE_ID"]  = new("Тип осложнения (ID)",  "",      "Идентификатор типа осложнения."),
+        ["REC_HEADER_ID"]    = Spec("REC_HEADER_ID"),
+        ["REC_TIME"]         = Spec("REC_TIME"),
+        ["BOTTOM_DEPTH"]     = Spec("BOTTOM_DEPTH", "м"),
+        ["BIT_DEPTH"]        = Spec("BIT_DEPTH", "м"),
+        ["BOTTOM_LAG_DEPTH"] = Spec("BOTTOM_LAG_DEPTH", "м"),
     };
 
-    // ============================================================
-    // Per-table columns. Only entries that PARAMS does NOT cover live
-    // here: REC_HEADERS holds metadata (time, depth), and OPERATIONS_VIEW
-    // is the synthetic alias schema for the Операции tab. Everything in
-    // REC_COMMON / REC_LAG comes from the PARAMS table at connect time.
-    // ============================================================
-
-    private static readonly Dictionary<string, Dictionary<string, ColumnInfo>> Columns = new(System.StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, Dictionary<string, ColumnSpec>> Columns = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        ["REC_HEADERS"] = new(System.StringComparer.OrdinalIgnoreCase)
-        {
-            ["REC_HEADER_ID"]    = new("Запись (ID)",         "",  "Внутренний идентификатор записи."),
-            ["RACE_ID"]          = new("Рейс (ID)",           "",  "Привязка к рейсу."),
-            ["REC_TIME"]         = new("Время",               "",  "Момент регистрации записи."),
-            ["BOTTOM_DEPTH"]     = new("Глубина забоя",       "м", "Текущая глубина забоя."),
-            ["BIT_DEPTH"]        = new("Глубина долота",      "м", "Текущая глубина положения долота."),
-            ["BOTTOM_LAG_DEPTH"] = new("Глубина забоя (лаг)", "м", "Глубина забоя с учётом отставания."),
-        },
-
         // Synthetic schema for the Инструменты tab. GetToolsAsync aliases its result
         // columns to these names; the underlying tables are BOTTOM_HOLE_ASSEMBLY (компоновка),
         // DRILL_STRING_ITEM_TYPE (типы элементов) и DRILL_STRING_ITEM (типоразмеры).
         ["TOOLS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
         {
-            ["TL_POS"]          = new("№",                   "",   "Порядковый номер строки в списке."),
-            ["TL_NAME"]         = new("Название",            "",   "Тип элемента колонны: свеча, долото, УБТ, забойный двигатель и т. д."),
-            ["TL_BRAND"]        = new("Марка",               "",   "Конкретный типоразмер инструмента из справочника DRILL_STRING_ITEM."),
-            ["TL_COUNT"]        = new("Кол-во",              "",   "Число одинаковых элементов в этой позиции."),
-            ["TL_DIAMETER"]     = new("Диаметр",             "мм", "Наружный диаметр элемента."),
-            ["TL_WALL"]         = new("Толщина стенки",      "мм", "Толщина стенки трубы."),
-            ["TL_WEIGHT_M"]     = new("Вес погонного метра", "кг", "Масса одного погонного метра."),
-            ["TL_LEN"]          = new("Длина",               "м",  "Длина одного элемента."),
-            ["TL_TOTAL_LEN"]    = new("Сумм. длина",         "м",  "Длина элемента, умноженная на количество."),
-            ["TL_TOTAL_WEIGHT"] = new("Сумм. вес",           "т",  "Вес погонного метра, умноженный на суммарную длину, в тоннах."),
+            ["TL_POS"]          = Spec("TL_POS"),
+            ["TL_NAME"]         = Spec("TL_NAME"),
+            ["TL_BRAND"]        = Spec("TL_BRAND"),
+            ["TL_COUNT"]        = Spec("TL_COUNT"),
+            ["TL_DIAMETER"]     = Spec("TL_DIAMETER", "мм"),
+            ["TL_WALL"]         = Spec("TL_WALL", "мм"),
+            ["TL_WEIGHT_M"]     = Spec("TL_WEIGHT_M", "кг"),
+            ["TL_LEN"]          = Spec("TL_LEN", "м"),
+            ["TL_TOTAL_LEN"]    = Spec("TL_TOTAL_LEN", "м"),
+            ["TL_TOTAL_WEIGHT"] = Spec("TL_TOTAL_WEIGHT", "т"),
         },
 
-        // Synthetic schema for the Операции tab. The query in FirebirdService aliases
-        // its result columns to these names so they get nice Russian headers.
+        // Synthetic schema for the Операции tab. GetOperationsAsync aliases its result
+        // columns to these names.
         ["OPERATIONS_VIEW"] = new(System.StringComparer.OrdinalIgnoreCase)
         {
-            ["OP_NUMBER"]         = new("№",                 "",    "Внутренний номер записи операции."),
-            ["WORK_KIND_NAME"]    = new("Вид работ",         "",    "Категория работы (из справочника WORK_TYPES)."),
-            ["OPER_NAME"]         = new("Операция",          "",    "Название операции (USER_OPER_ID имеет приоритет, иначе OPER_ID — из справочника OPER_TYPES)."),
-            ["SUB_OPER_NAME"]     = new("Подоперация",       "",    "Уточняющая операция (из справочника SUBOPER_TYPES)."),
-            ["OP_START"]          = new("Начало",            "",    "Время начала операции."),
-            ["OP_STOP"]           = new("Окончание",         "",    "Время окончания операции."),
-            ["OP_DURATION_HOURS"] = new("Длительность",      "час", "Длительность операции в часах."),
-            ["OP_COMMENT"]        = new("Комментарий",       "",    "Комментарий к операции."),
+            ["OP_NUMBER"]         = Spec("OP_NUMBER"),
+            ["WORK_KIND_NAME"]    = Spec("WORK_KIND_NAME"),
+            ["OPER_NAME"]         = Spec("OPER_NAME"),
+            ["SUB_OPER_NAME"]     = Spec("SUB_OPER_NAME"),
+            ["OP_START"]          = Spec("OP_START"),
+            ["OP_STOP"]           = Spec("OP_STOP"),
+            ["OP_DURATION_HOURS"] = Spec("OP_DURATION_HOURS", "час"),
+            ["OP_COMMENT"]        = Spec("OP_COMMENT"),
         },
     };
 }

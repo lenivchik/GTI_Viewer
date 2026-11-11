@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
+using FirebirdViewer.Localization;
+using FirebirdViewer.Services;
 
 namespace FirebirdViewer;
 
@@ -9,6 +11,12 @@ public partial class App : Application
     {
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+
+        // The language has to be known before the main window is created, so its
+        // labels come up translated from the first frame.
+        var saved = new SettingsService().Load().Language;
+        Loc.SetLanguage(saved ?? Loc.SystemDefaultCode());
+
         base.OnStartup(e);
     }
 
@@ -16,7 +24,7 @@ public partial class App : Application
     {
         MessageBox.Show(
             e.Exception.Message,
-            "Unhandled error",
+            Loc.T("App_UnhandledError"),
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         e.Handled = true;
@@ -26,7 +34,7 @@ public partial class App : Application
     {
         if (e.ExceptionObject is Exception ex)
         {
-            MessageBox.Show(ex.Message, "Fatal error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, Loc.T("App_FatalError"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }

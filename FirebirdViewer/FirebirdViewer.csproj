@@ -19,6 +19,11 @@
     <Description>WPF tool for browsing Firebird databases.</Description>
     <Copyright>Copyright (c) 2026</Copyright>
 
+    <!-- Localization: Resources/Strings.resx holds Russian, which is also what the
+         database stores. Strings.kk.resx / Strings.uz-Latn.resx build into satellite
+         assemblies (kk\, uz-Latn\ next to the .exe). -->
+    <NeutralLanguage>ru</NeutralLanguage>
+
     <!-- Build hygiene -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>

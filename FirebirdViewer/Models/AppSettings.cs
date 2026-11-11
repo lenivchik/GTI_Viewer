@@ -14,4 +14,8 @@ public sealed class AppSettings
 
     /// <summary>Seconds between real-time polls.</summary>
     public int LiveIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Interface language code ("ru", "kk", "uz-Latn"); null until the user picks one,
+    /// in which case the Windows display language decides.</summary>
+    public string? Language { get; set; }
 }

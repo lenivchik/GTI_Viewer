@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using FirebirdViewer.Localization;
 using FirebirdViewer.ViewModels;
 using ScottPlot;
 using ScottPlot.WPF;
@@ -228,7 +229,7 @@ public sealed class ChartPlotBinder : IDisposable
             _plot.Plot.Clear();
             _plotted.Clear();
             _bandRect = _pickMarker = _pickLabel = null;
-            _vm.CursorText = $"Ошибка построения графика: {ex.Message}";
+            _vm.CursorText = Loc.F("Chart_RenderError", ex.Message);
             _plot.Refresh();
         }
     }
@@ -269,7 +270,7 @@ public sealed class ChartPlotBinder : IDisposable
         // The independent (time/depth) axis: bottom when horizontal, left when vertical.
         var indepAxis = snap.Vertical ? (ScottPlot.IAxis)plot.Axes.Left : plot.Axes.Bottom;
         indepAxis.IsVisible = true;
-        indepAxis.Label.Text = snap.IsTime ? "Время" : "Глубина забоя, м";
+        indepAxis.Label.Text = snap.IsTime ? Loc.T("Chart_Time") : Loc.T("Axis_DepthWithUnit");
         indepAxis.Label.ForeColor = ScottPlot.Colors.Black;
         indepAxis.TickLabelStyle.ForeColor = ScottPlot.Colors.Black;
         indepAxis.TickGenerator = MakeIndepTickGenerator(snap);
@@ -289,7 +290,7 @@ public sealed class ChartPlotBinder : IDisposable
         if (!snap.SeparateScales)
         {
             sharedValueAxis = NewValueAxis();
-            sharedValueAxis.Label.Text = "Значение";
+            sharedValueAxis.Label.Text = Loc.T("Axis_Value");
             valueAxes.Add(sharedValueAxis);
         }
 
@@ -297,7 +298,7 @@ public sealed class ChartPlotBinder : IDisposable
         if (snap.Series.Count == 0 && sharedValueAxis is null)
         {
             var placeholder = NewValueAxis();
-            placeholder.Label.Text = "Значение";
+            placeholder.Label.Text = Loc.T("Axis_Value");
         }
 
         foreach (var s in snap.Series)
@@ -462,7 +463,7 @@ public sealed class ChartPlotBinder : IDisposable
             _vm.CursorText = double.IsFinite(at)
                 ? (_vm.XAxis == ChartXAxisMode.Time
                     ? FormatOaDateLong(at)
-                    : $"{at.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} м")
+                    : Loc.F("Fmt_Meters", at.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)))
                 : null;
             return;
         }
@@ -554,7 +555,7 @@ public sealed class ChartPlotBinder : IDisposable
         // Value label pinned next to the point itself.
         var indepStr = _vm.XAxis == ChartXAxisMode.Time
             ? DateTime.FromOADate(indep).ToString("dd.MM.yyyy HH:mm:ss")
-            : $"{indep.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} м";
+            : Loc.F("Fmt_Meters", indep.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
         var valStr = value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
         var label = plot.Add.Text($"{c.Data.Name}\n{valStr}\n{indepStr}", xv, yv);
@@ -652,6 +653,7 @@ public sealed class ChartPlotBinder : IDisposable
             var b = DateTime.FromOADate(hi);
             return $"{a:dd.MM HH:mm:ss} – {b:dd.MM HH:mm:ss}";
         }
-        return $"глубина {lo:0.##} – {hi:0.##} м";
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return Loc.F("Selection_DepthRange", lo.ToString("0.##", inv), hi.ToString("0.##", inv));
     }
 }

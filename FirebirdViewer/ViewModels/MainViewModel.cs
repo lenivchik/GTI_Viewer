@@ -8,6 +8,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using FirebirdViewer.Commands;
+using FirebirdViewer.Localization;
 using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
@@ -46,6 +47,12 @@ public sealed class MainViewModel : ObservableObject
         AddChartCommand       = new RelayCommand(_ => AddChart());
         RemoveChartCommand    = new RelayCommand(p => RemoveChart(p as ChartPanelViewModel));
         ToggleLiveCommand     = new RelayCommand(_ => IsLiveMode = !IsLiveMode, _ => IsConnected);
+        SelectLanguageCommand = new RelayCommand(p => SelectLanguage(p as string));
+
+        Languages = Loc.Languages
+            .Select(l => new LanguageOption(l.Code, l.NativeName) { IsSelected = l.Code == Loc.Code })
+            .ToList();
+        Loc.LanguageChanged += OnLanguageChanged;
 
         // Seed one chart so the Графики tab is never empty.
         AddChart();
@@ -76,8 +83,17 @@ public sealed class MainViewModel : ObservableObject
     }
     public bool IsDisconnected => !IsConnected;
 
-    private string _statusText = "Не подключено";
+    private string _statusText = Loc.T("Status_NotConnected");
     public string StatusText { get => _statusText; set => SetProperty(ref _statusText, value); }
+
+    /// <summary>What <see cref="StatusText"/> says, kept so a language switch can re-render it.</summary>
+    private LocalizedText? _statusSource = new("Status_NotConnected");
+
+    private void SetStatus(string key, params object?[] args)
+    {
+        _statusSource = new LocalizedText(key, args);
+        StatusText = _statusSource.Text;
+    }
 
     private string? _connectionInfoText;
     public string? ConnectionInfoText { get => _connectionInfoText; set => SetProperty(ref _connectionInfoText, value); }
@@ -124,11 +140,11 @@ public sealed class MainViewModel : ObservableObject
     {
         get
         {
-            if (SelectedWell is null) return "Просмотр данных ГТИ";
+            if (SelectedWell is null) return Loc.T("App_Title");
             var raceText = SelectedRace is null || SelectedRace.IsAllRaces
-                ? "все рейсы"
+                ? Loc.T("App_AllRacesLower")
                 : SelectedRace.Display;
-            return $"Просмотр данных ГТИ: {SelectedWell.Name} — {raceText}";
+            return Loc.F("App_TitleWithWell", SelectedWell.Name, raceText);
         }
     }
 
@@ -344,12 +360,12 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Polling intervals offered in the toolbar.</summary>
     public static IReadOnlyList<LiveIntervalOption> LiveIntervalOptions { get; } = new[]
     {
-        new LiveIntervalOption(1,  "1 с"),
-        new LiveIntervalOption(2,  "2 с"),
-        new LiveIntervalOption(5,  "5 с"),
-        new LiveIntervalOption(10, "10 с"),
-        new LiveIntervalOption(30, "30 с"),
-        new LiveIntervalOption(60, "1 мин"),
+        new LiveIntervalOption(1),
+        new LiveIntervalOption(2),
+        new LiveIntervalOption(5),
+        new LiveIntervalOption(10),
+        new LiveIntervalOption(30),
+        new LiveIntervalOption(60),
     };
 
     private bool _isLiveMode;
@@ -378,6 +394,15 @@ public sealed class MainViewModel : ObservableObject
     private string? _liveStatusText;
     public string? LiveStatusText { get => _liveStatusText; private set => SetProperty(ref _liveStatusText, value); }
 
+    /// <summary>What <see cref="LiveStatusText"/> says, kept so a language switch can re-render it.</summary>
+    private LocalizedText? _liveStatusSource;
+
+    private void SetLiveStatus(LocalizedText? text)
+    {
+        _liveStatusSource = text;
+        LiveStatusText = text?.Text;
+    }
+
     /// <summary>Race filter for the queries: null means «все рейсы».</summary>
     private long? CurrentRaceId =>
         SelectedRace is null || SelectedRace.IsAllRaces ? null : SelectedRace.RaceId;
@@ -396,17 +421,17 @@ public sealed class MainViewModel : ObservableObject
         _live.Interval = TimeSpan.FromSeconds(LiveIntervalSeconds);
         if (!_live.IsRunning) _live.Start(PollLiveAsync);
         IsLiveRunning = true;
-        LiveStatusText = $"Реальное время: опрос каждые {LiveIntervalSeconds} с";
+        SetLiveStatus(new LocalizedText("Live_Polling", LiveIntervalSeconds));
     }
 
     /// <summary><paramref name="reason"/> overrides the default text when polling stops after errors.</summary>
-    private void StopLive(string? reason = null)
+    private void StopLive(LocalizedText? reason = null)
     {
         _live.Stop();
         IsLiveRunning = false;
-        LiveStatusText = reason ?? (!IsLiveMode ? null
-            : !IsConnected ? "Реальное время: нет подключения"
-            : "Реальное время: скважина не выбрана");
+        SetLiveStatus(reason ?? (!IsLiveMode ? null
+            : !IsConnected ? new LocalizedText("Live_NoConnection")
+            : new LocalizedText("Live_NoWell")));
     }
 
     /// <summary>
@@ -471,15 +496,15 @@ public sealed class MainViewModel : ObservableObject
 
             if ((appended > 0 && !fullRead) || updated > 0)
             {
-                RowCountText = $"Записей: {CurrentTableData?.Count ?? 0} (показано не более {RowLimit})";
+                UpdateRowCountText();
                 PushLiveDataToCharts();
             }
 
             _livePollFailures = 0;
             var stamp = DateTime.Now.ToString("HH:mm:ss");
-            LiveStatusText = appended > 0 ? $"Реальное время: {stamp}, +{appended}"
-                : updated > 0             ? $"Реальное время: {stamp}, уточнено записей: {updated}"
-                                          : $"Реальное время: {stamp}, новых записей нет";
+            SetLiveStatus(appended > 0 ? new LocalizedText("Live_Appended", stamp, appended)
+                : updated > 0             ? new LocalizedText("Live_Updated", stamp, updated)
+                                          : new LocalizedText("Live_NoNew", stamp));
         }
         catch (OperationCanceledException)
         {
@@ -488,17 +513,16 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _livePollFailures++;
-            LiveStatusText = $"Реальное время: ошибка обновления — {ex.Message}";
+            SetLiveStatus(new LocalizedText("Live_PollError", ex.Message));
 
             if (_livePollFailures >= MaxLivePollFailures)
             {
                 var message = ex.Message;
                 IsLiveMode = false;                       // ApplyLiveMode stops the timer
-                StopLive($"Реальное время выключено: {_livePollFailures} ошибки подряд");
+                StopLive(new LocalizedText("Live_Stopped", _livePollFailures));
                 MessageBox.Show(
-                    $"Автообновление остановлено после {_livePollFailures} неудачных попыток подряд.\n\n{message}"
-                    + "\n\nЕсли ошибка повторяется, переподключитесь: Файл → Подключиться к базе...",
-                    "Реальное время", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.F("Live_StoppedMessage", _livePollFailures, message),
+                    Loc.T("Live_Toggle"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
         finally
@@ -646,6 +670,7 @@ public sealed class MainViewModel : ObservableObject
     public ICommand AddChartCommand          { get; }
     public ICommand RemoveChartCommand       { get; }
     public ICommand ToggleLiveCommand        { get; }
+    public ICommand SelectLanguageCommand    { get; }
 
     // ============================================================
     // Connect / disconnect
@@ -657,7 +682,7 @@ public sealed class MainViewModel : ObservableObject
         _loadDepth++;
         try
         {
-            StatusText = "Подключение...";
+            SetStatus("Status_Connecting");
 
             await _db.ConnectAsync(settings).ConfigureAwait(true);
             Connection = settings;
@@ -666,7 +691,7 @@ public sealed class MainViewModel : ObservableObject
             await LoadParameterCatalogAsync().ConfigureAwait(true);
             await LoadWellsAsync().ConfigureAwait(true);
 
-            StatusText = "Подключено";
+            SetStatus("Status_Connected");
             ConnectionInfoText = $"{settings.Display}  ·  {_db.ServerVersion}";
             ApplyLiveMode();
 
@@ -677,8 +702,8 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             IsConnected = false;
-            StatusText = "Ошибка подключения";
-            MessageBox.Show(ex.Message, "Ошибка подключения",
+            SetStatus("Status_ConnectError");
+            MessageBox.Show(ex.Message, Loc.T("Status_ConnectError"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
@@ -701,7 +726,7 @@ public sealed class MainViewModel : ObservableObject
         SelectedWell = null;
         SelectedRace = null;
         CurrentTableData = OperationsData = ToolsData = null;
-        StatusText = "Отключено";
+        SetStatus("Status_Disconnected");
         ConnectionInfoText = null;
         RowCountText = null;
         OperationsCountText = null;
@@ -737,14 +762,14 @@ public sealed class MainViewModel : ObservableObject
             Wells.Clear();
             foreach (var w in list) Wells.Add(w);
 
-            StatusText = $"Скважин загружено: {Wells.Count}";
+            SetStatus("Status_WellsLoaded", Wells.Count);
 
             // Auto-select the first well so the user immediately sees data.
             SelectedWell = Wells.FirstOrDefault();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Ошибка чтения скважин",
+            MessageBox.Show(ex.Message, Loc.T("Error_ReadWells"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -775,7 +800,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Ошибка чтения рейсов",
+            MessageBox.Show(ex.Message, Loc.T("Error_ReadRaces"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -824,7 +849,7 @@ public sealed class MainViewModel : ObservableObject
             CurrentTableData = null;
             Columns.Clear();
             _lastRecHeaderId = 0;
-            MessageBox.Show(ex.Message, "Ошибка чтения данных",
+            MessageBox.Show(ex.Message, Loc.T("Error_ReadData"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -835,7 +860,7 @@ public sealed class MainViewModel : ObservableObject
         RebuildColumnVisibility(dt);
         CurrentTableData = dt.DefaultView;
         UpdateWatermark(dt);
-        RowCountText = $"Записей: {dt.Rows.Count} (показано не более {RowLimit})";
+        UpdateRowCountText();
         PushDataToCharts();
     }
 
@@ -845,14 +870,14 @@ public sealed class MainViewModel : ObservableObject
         {
             var dt = await _db.GetOperationsAsync(wellId, raceId).ConfigureAwait(true);
             OperationsData = dt.DefaultView;
-            OperationsCountText = $"Операций: {dt.Rows.Count}";
+            UpdateOperationsCountText();
         }
         catch (Exception ex)
         {
-            if (_inLivePoll) { LiveStatusText = $"Реальное время: операции — {ex.Message}"; return; }
+            if (_inLivePoll) { SetLiveStatus(new LocalizedText("Live_OperationsError", ex.Message)); return; }
             OperationsData = null;
             OperationsCountText = null;
-            MessageBox.Show(ex.Message, "Ошибка чтения операций",
+            MessageBox.Show(ex.Message, Loc.T("Error_ReadOperations"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -864,14 +889,14 @@ public sealed class MainViewModel : ObservableObject
             var dt = await _db.GetToolsAsync(wellId, raceId).ConfigureAwait(true);
             RenumberToolRows(dt);
             ToolsData = dt.DefaultView;
-            ToolsCountText = $"Инструмент: {dt.Rows.Count}";
+            UpdateToolsCountText();
         }
         catch (Exception ex)
         {
-            if (_inLivePoll) { LiveStatusText = $"Реальное время: инструмент — {ex.Message}"; return; }
+            if (_inLivePoll) { SetLiveStatus(new LocalizedText("Live_ToolsError", ex.Message)); return; }
             ToolsData = null;
             ToolsCountText = null;
-            MessageBox.Show(ex.Message, "Ошибка чтения инструмента",
+            MessageBox.Show(ex.Message, Loc.T("Error_ReadTools"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -891,6 +916,15 @@ public sealed class MainViewModel : ObservableObject
 
         dt.AcceptChanges();   // the rows are freshly read, not user edits
     }
+
+    private void UpdateRowCountText() =>
+        RowCountText = CurrentTableData is null ? null : Loc.F("Count_Rows", CurrentTableData.Count, RowLimit);
+
+    private void UpdateOperationsCountText() =>
+        OperationsCountText = OperationsData is null ? null : Loc.F("Count_Operations", OperationsData.Count);
+
+    private void UpdateToolsCountText() =>
+        ToolsCountText = ToolsData is null ? null : Loc.F("Count_Tools", ToolsData.Count);
 
     private void RebuildColumnVisibility(DataTable dt)
     {
@@ -923,14 +957,14 @@ public sealed class MainViewModel : ObservableObject
     private void ExportDataToCsv()
     {
         var nameHint = SelectedWell is null
-            ? "Данные ГТИ"
-            : $"{SelectedWell.Name} {(SelectedRace is null || SelectedRace.IsAllRaces ? "все рейсы" : "Рейс " + SelectedRace.Number)}";
+            ? Loc.T("Export_DataName")
+            : $"{SelectedWell.Name} {(SelectedRace is null || SelectedRace.IsAllRaces ? Loc.T("App_AllRacesLower") : Loc.F("Export_Race", SelectedRace.Number))}";
         ExportToCsv(CurrentTableData, null, nameHint);
     }
 
     private void ExportOperationsToCsv()
     {
-        var nameHint = SelectedWell is null ? "Операции" : $"Операции — {SelectedWell.Name}";
+        var nameHint = SelectedWell is null ? Loc.T("Export_OperationsName") : Loc.F("Export_OperationsOfWell", SelectedWell.Name);
         ExportToCsv(OperationsData, "OPERATIONS_VIEW", nameHint);
     }
 
@@ -939,7 +973,7 @@ public sealed class MainViewModel : ObservableObject
         if (view is null) return;
         var dlg = new SaveFileDialog
         {
-            Filter = "CSV (*.csv)|*.csv|Все файлы (*.*)|*.*",
+            Filter = Loc.T("Export_Filter"),
             FileName = $"{suggestedName}.csv",
             DefaultExt = ".csv"
         };
@@ -961,7 +995,7 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Ошибка экспорта",
+            MessageBox.Show(ex.Message, Loc.T("Error_Export"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -1018,6 +1052,7 @@ public sealed class MainViewModel : ObservableObject
         }
         RecentConnections.Clear();
         foreach (var c in s.RecentConnections) RecentConnections.Add(c);
+        _languagePreference = s.Language;   // App.OnStartup has already applied it
     }
 
     public void SaveSettings()
@@ -1027,6 +1062,7 @@ public sealed class MainViewModel : ObservableObject
             RowLimit = RowLimit,
             LiveMode = IsLiveMode,
             LiveIntervalSeconds = LiveIntervalSeconds,
+            Language = _languagePreference,
             LastConnection = StripPassword(Connection),
             RecentConnections = RecentConnections.Select(StripPassword).ToList()
         };
@@ -1036,8 +1072,59 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Called when the window closes: stop polling before the app tears down.</summary>
     public void Shutdown()
     {
+        Loc.LanguageChanged -= OnLanguageChanged;
         _live.Dispose();
         IsLiveRunning = false;
+    }
+
+    // ============================================================
+    // Interface language
+    // ============================================================
+
+    /// <summary>Entries of the Язык menu.</summary>
+    public IReadOnlyList<LanguageOption> Languages { get; }
+
+    /// <summary>
+    /// The language the user picked, or null while they never did — then the Windows display
+    /// language decides at every start, and that is what gets saved back.
+    /// </summary>
+    private string? _languagePreference;
+
+    private void SelectLanguage(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return;
+        Loc.SetLanguage(code);            // raises LanguageChanged → OnLanguageChanged
+        _languagePreference = Loc.Code;
+        foreach (var l in Languages) l.IsSelected = l.Code == Loc.Code;
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// Re-label everything this view model produced as text. XAML labels follow on their own
+    /// (they bind to <see cref="Loc"/>); these are strings built in code.
+    /// </summary>
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        // Column labels: parameter names are translated per language, units too.
+        foreach (var c in Columns)
+        {
+            c.DisplayName = FriendlyNames.GetColumnDisplay(null, c.Name);
+            c.Description = FriendlyNames.GetColumnDescription(null, c.Name);
+        }
+
+        foreach (var w in Wells) w.RefreshDisplay();
+        foreach (var r in Races) r.RefreshDisplay();
+        OnPropertyChanged(nameof(WindowTitle));
+
+        if (_statusSource is not null) StatusText = _statusSource.Text;
+        if (_liveStatusSource is not null) LiveStatusText = _liveStatusSource.Text;
+        UpdateRowCountText();
+        UpdateOperationsCountText();
+        UpdateToolsCountText();
+        CursorText = null;   // quoted a column header in the old language; the next click rebuilds it
+
+        // Curve names come from Columns, axis titles from the renderer: redraw, keeping zoom.
+        foreach (var chart in Charts) chart.OnLanguageChanged(Columns);
     }
 
     private static ConnectionSettings StripPassword(ConnectionSettings c)
@@ -1048,5 +1135,19 @@ public sealed class MainViewModel : ObservableObject
     }
 }
 
-/// <summary>One entry in the real-time interval combo: seconds plus its Russian label.</summary>
-public sealed record LiveIntervalOption(int Seconds, string Label);
+/// <summary>One entry in the real-time interval combo. The label follows the interface language.</summary>
+public sealed class LiveIntervalOption : ObservableObject
+{
+    public LiveIntervalOption(int seconds)
+    {
+        Seconds = seconds;
+        // The options live in a static list for the whole run, so this never needs undoing.
+        Loc.LanguageChanged += (_, _) => OnPropertyChanged(nameof(Label));
+    }
+
+    public int Seconds { get; }
+
+    public string Label => Seconds >= 60 && Seconds % 60 == 0
+        ? Loc.F("Interval_Minutes", Seconds / 60)
+        : Loc.F("Interval_Seconds", Seconds);
+}

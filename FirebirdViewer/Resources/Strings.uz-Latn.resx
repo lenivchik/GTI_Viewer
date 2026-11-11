@@ -1,0 +1,943 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Uzbek (Latin) translation. A key missing here falls back to Strings.resx (Russian). Param_<field> translates the parameter name keyed by PARAMS.TABLE_FIELD (Param_<field>_N is a numbered family, {0} = the number). Unit_<hex> translates a Russian unit; the comment shows which.
+  Keys: letters, digits and underscores only (they are used inside XAML binding paths).
+  {0}, {1} ... are placeholders filled in by the program; keep them in every translation.
+  "_" before a letter in a menu caption marks the Alt access key.
+-->
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App_Title" xml:space="preserve">
+    <value>GTI maʼlumotlarini koʻrish</value>
+  </data>
+  <data name="App_TitleWithWell" xml:space="preserve">
+    <value>GTI maʼlumotlarini koʻrish: {0} — {1}</value>
+  </data>
+  <data name="App_AllRacesLower" xml:space="preserve">
+    <value>barcha reyslar</value>
+  </data>
+  <data name="App_UnhandledError" xml:space="preserve">
+    <value>Kutilmagan xato</value>
+  </data>
+  <data name="App_FatalError" xml:space="preserve">
+    <value>Jiddiy xato</value>
+  </data>
+  <data name="Menu_File" xml:space="preserve">
+    <value>_Fayl</value>
+  </data>
+  <data name="Menu_Connect" xml:space="preserve">
+    <value>Bazaga _ulanish...</value>
+  </data>
+  <data name="Menu_Disconnect" xml:space="preserve">
+    <value>_Uzish</value>
+  </data>
+  <data name="Menu_Recent" xml:space="preserve">
+    <value>Soʻnggi u_lanishlar</value>
+  </data>
+  <data name="Menu_ClearRecent" xml:space="preserve">
+    <value>Roʻyxatni _tozalash</value>
+  </data>
+  <data name="Menu_ExportTable" xml:space="preserve">
+    <value>Jadvalni CSV ga _saqlash...</value>
+  </data>
+  <data name="Menu_ExportOperations" xml:space="preserve">
+    <value>_Operatsiyalarni CSV ga saqlash...</value>
+  </data>
+  <data name="Menu_Exit" xml:space="preserve">
+    <value>_Chiqish</value>
+  </data>
+  <data name="Menu_Edit" xml:space="preserve">
+    <value>_Tahrirlash</value>
+  </data>
+  <data name="Menu_Copy" xml:space="preserve">
+    <value>Belgilanganni _nusxalash</value>
+  </data>
+  <data name="Menu_View" xml:space="preserve">
+    <value>_Koʻrinish</value>
+  </data>
+  <data name="Menu_ShowAllColumns" xml:space="preserve">
+    <value>_Barcha ustunlarni koʻrsatish</value>
+  </data>
+  <data name="Menu_MoveColumnUp" xml:space="preserve">
+    <value>Ustunni _yuqoriga surish</value>
+  </data>
+  <data name="Menu_MoveColumnDown" xml:space="preserve">
+    <value>Ustunni _pastga surish</value>
+  </data>
+  <data name="Menu_Refresh" xml:space="preserve">
+    <value>Maʼlumotlarni yan_gilash</value>
+  </data>
+  <data name="Menu_Live" xml:space="preserve">
+    <value>_Real vaqt</value>
+  </data>
+  <data name="Menu_Live_Tip" xml:space="preserve">
+    <value>Bazadan yangi yozuvlarni avtomatik yuklash</value>
+  </data>
+  <data name="Menu_Language" xml:space="preserve">
+    <value>_Til</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>_Yordam</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>Dastur _haqida</value>
+  </data>
+  <data name="About_Title" xml:space="preserve">
+    <value>Dastur haqida</value>
+  </data>
+  <data name="About_Text" xml:space="preserve">
+    <value>GTI maʼlumotlarini koʻrish
+Versiya {0}
+
+Firebird bazasidan GTI maʼlumotlarini qulay koʻrish uchun dastur.
+Parametr nomlari GtiRealtimeCharts tizimidan olingan.</value>
+  </data>
+  <data name="Live_Toggle" xml:space="preserve">
+    <value>Real vaqt</value>
+  </data>
+  <data name="Live_Toggle_Tip" xml:space="preserve">
+    <value>Bazada paydo boʻlishi bilan yangi yozuvlarni avtomatik yuklash (F9)</value>
+  </data>
+  <data name="Live_Interval_Tip" xml:space="preserve">
+    <value>Bazani qanchalik tez-tez soʻrash</value>
+  </data>
+  <data name="Live_On_Tip" xml:space="preserve">
+    <value>Real vaqt yoqilgan</value>
+  </data>
+  <data name="Live_Off_Tip" xml:space="preserve">
+    <value>Real vaqt oʻchirilgan</value>
+  </data>
+  <data name="Interval_Seconds" xml:space="preserve">
+    <value>{0} s</value>
+  </data>
+  <data name="Interval_Minutes" xml:space="preserve">
+    <value>{0} daq</value>
+  </data>
+  <data name="RowLimit_Label" xml:space="preserve">
+    <value>Koʻrsatiladigan yozuvlar:</value>
+  </data>
+  <data name="RowLimit_Tip" xml:space="preserve">
+    <value>Bazadan yuklanadigan qatorlarning eng koʻp soni</value>
+  </data>
+  <data name="Refresh_Button" xml:space="preserve">
+    <value>Yangilash</value>
+  </data>
+  <data name="Refresh_Tip" xml:space="preserve">
+    <value>Joriy quduq va reys maʼlumotlarini qayta oʻqish (F5)</value>
+  </data>
+  <data name="Well_Label" xml:space="preserve">
+    <value>Quduq:</value>
+  </data>
+  <data name="Well_Tip" xml:space="preserve">
+    <value>Koʻrish uchun quduqni tanlang</value>
+  </data>
+  <data name="Race_Label" xml:space="preserve">
+    <value>Reys:</value>
+  </data>
+  <data name="Race_Tip" xml:space="preserve">
+    <value>Koʻrishni bitta reys bilan cheklang yoki «Barcha reyslar»ni tanlang</value>
+  </data>
+  <data name="Well_WithCluster" xml:space="preserve">
+    <value>{0}  ·  kust {1}</value>
+  </data>
+  <data name="Race_All" xml:space="preserve">
+    <value>Barcha reyslar</value>
+  </data>
+  <data name="Race_Number" xml:space="preserve">
+    <value>Reys №{0}</value>
+  </data>
+  <data name="Race_Since" xml:space="preserve">
+    <value>{0} dan</value>
+  </data>
+  <data name="Tab_Charts" xml:space="preserve">
+    <value>Grafiklar</value>
+  </data>
+  <data name="Tab_Table" xml:space="preserve">
+    <value>Jadval</value>
+  </data>
+  <data name="Tab_Tools" xml:space="preserve">
+    <value>Asboblar</value>
+  </data>
+  <data name="Tab_Operations" xml:space="preserve">
+    <value>Operatsiyalar</value>
+  </data>
+  <data name="Chart_Add" xml:space="preserve">
+    <value>+ Grafik qoʻshish</value>
+  </data>
+  <data name="Chart_Add_Tip" xml:space="preserve">
+    <value>Yana bitta grafik panelini yaratish</value>
+  </data>
+  <data name="Chart_Orientation" xml:space="preserve">
+    <value>Yoʻnalish:</value>
+  </data>
+  <data name="Chart_Horizontal" xml:space="preserve">
+    <value>Gorizontal</value>
+  </data>
+  <data name="Chart_Horizontal_Tip" xml:space="preserve">
+    <value>Grafiklar birining ostida biri joylashadi</value>
+  </data>
+  <data name="Chart_Vertical" xml:space="preserve">
+    <value>Vertikal</value>
+  </data>
+  <data name="Chart_Vertical_Tip" xml:space="preserve">
+    <value>Grafiklar chapdan oʻngga joylashadi; yangilari oʻng tomondan qoʻshiladi</value>
+  </data>
+  <data name="Chart_DefaultTitle" xml:space="preserve">
+    <value>Grafik {0}</value>
+  </data>
+  <data name="Chart_Remove_Tip" xml:space="preserve">
+    <value>Ushbu grafikni oʻchirish</value>
+  </data>
+  <data name="Chart_Title_Tip" xml:space="preserve">
+    <value>Grafik nomi</value>
+  </data>
+  <data name="Chart_XAxis" xml:space="preserve">
+    <value>X oʻqi:</value>
+  </data>
+  <data name="Chart_Time" xml:space="preserve">
+    <value>Vaqt</value>
+  </data>
+  <data name="Chart_Depth" xml:space="preserve">
+    <value>Quduq tubi chuqurligi</value>
+  </data>
+  <data name="Chart_Params" xml:space="preserve">
+    <value>Parametrlar ▾</value>
+  </data>
+  <data name="Chart_Params_Tip" xml:space="preserve">
+    <value>Chizish uchun parametrlarni tanlash</value>
+  </data>
+  <data name="Chart_SeparateScales" xml:space="preserve">
+    <value>Har bir egri chiziq uchun alohida shkala</value>
+  </data>
+  <data name="Chart_SeparateScales_Tip" xml:space="preserve">
+    <value>Har bir egri chiziq oʻz qiymatlar oʻqini oladi (turli diapazonlar uchun)</value>
+  </data>
+  <data name="Chart_Zoom" xml:space="preserve">
+    <value>Masshtab:</value>
+  </data>
+  <data name="Chart_ZoomOut_Tip" xml:space="preserve">
+    <value>Masshtabni kichraytirish (kattaroq oraliqni koʻrsatish)</value>
+  </data>
+  <data name="Chart_ZoomIn_Tip" xml:space="preserve">
+    <value>Masshtabni kattalashtirish (kichikroq oraliqni koʻrsatish)</value>
+  </data>
+  <data name="Chart_ZoomReset" xml:space="preserve">
+    <value>Toʻliq diapazon</value>
+  </data>
+  <data name="Chart_ZoomReset_Tip" xml:space="preserve">
+    <value>Barcha maʼlumotlarni koʻrsatish</value>
+  </data>
+  <data name="Chart_Cursor_Tip" xml:space="preserve">
+    <value>Vaqt / chuqurlik oʻqi boʻyicha kursor joylashuvi</value>
+  </data>
+  <data name="Chart_Plot_Tip" xml:space="preserve">
+    <value>Ctrl + gʻildirak — masshtab; gʻildirak — sahifani aylantirish;
+nuqtani ikki marta bosish — qiymati;
+Shift + sichqoncha bilan tortish — oraliqdagi oʻrtacha / min / maks</value>
+  </data>
+  <data name="Chart_RenderError" xml:space="preserve">
+    <value>Grafik chizishda xato: {0}</value>
+  </data>
+  <data name="Axis_Value" xml:space="preserve">
+    <value>Qiymati</value>
+  </data>
+  <data name="Axis_DepthWithUnit" xml:space="preserve">
+    <value>Quduq tubi chuqurligi, m</value>
+  </data>
+  <data name="Fmt_Meters" xml:space="preserve">
+    <value>{0} m</value>
+  </data>
+  <data name="Selection_DepthRange" xml:space="preserve">
+    <value>chuqurlik {0} – {1} m</value>
+  </data>
+  <data name="Selection_Clear" xml:space="preserve">
+    <value>Tozalash</value>
+  </data>
+  <data name="Selection_Range" xml:space="preserve">
+    <value>Oraliq: {0}</value>
+  </data>
+  <data name="Selection_RangeEmpty" xml:space="preserve">
+    <value>Oraliq: {0} — nuqtalar yoʻq</value>
+  </data>
+  <data name="Stat_Avg" xml:space="preserve">
+    <value>oʻrt.: </value>
+  </data>
+  <data name="Stat_Min" xml:space="preserve">
+    <value>min: </value>
+  </data>
+  <data name="Stat_Max" xml:space="preserve">
+    <value>maks: </value>
+  </data>
+  <data name="Stat_Count" xml:space="preserve">
+    <value>nuqta: </value>
+  </data>
+  <data name="Legend_Tip" xml:space="preserve">
+    <value>Egri chiziq koʻrinishini sozlash uchun bosing</value>
+  </data>
+  <data name="Legend_Color" xml:space="preserve">
+    <value>Rangi</value>
+  </data>
+  <data name="Legend_LineType" xml:space="preserve">
+    <value>Chiziq turi</value>
+  </data>
+  <data name="Legend_LineWidth" xml:space="preserve">
+    <value>Chiziq qalinligi</value>
+  </data>
+  <data name="LineType_Solid" xml:space="preserve">
+    <value>Uzluksiz</value>
+  </data>
+  <data name="LineType_Dashed" xml:space="preserve">
+    <value>Punktir</value>
+  </data>
+  <data name="LineType_Dotted" xml:space="preserve">
+    <value>Nuqtalar</value>
+  </data>
+  <data name="LineType_Step" xml:space="preserve">
+    <value>Pogʻonali</value>
+  </data>
+  <data name="Columns_Header" xml:space="preserve">
+    <value>Koʻrsatiladigan ustunlar</value>
+  </data>
+  <data name="Columns_Up" xml:space="preserve">
+    <value>Yuqoriga</value>
+  </data>
+  <data name="Columns_Up_Tip" xml:space="preserve">
+    <value>Tanlangan ustunni yuqoriga surish</value>
+  </data>
+  <data name="Columns_Down" xml:space="preserve">
+    <value>Pastga</value>
+  </data>
+  <data name="Columns_Down_Tip" xml:space="preserve">
+    <value>Tanlangan ustunni pastga surish</value>
+  </data>
+  <data name="Columns_All" xml:space="preserve">
+    <value>Hammasi</value>
+  </data>
+  <data name="Columns_All_Tip" xml:space="preserve">
+    <value>Barcha ustunlarni birdaniga koʻrsatish yoki yashirish</value>
+  </data>
+  <data name="Cursor_Record" xml:space="preserve">
+    <value>Yozuv {0} · {1}: {2}</value>
+  </data>
+  <data name="Status_NotConnected" xml:space="preserve">
+    <value>Ulanmagan</value>
+  </data>
+  <data name="Status_Connecting" xml:space="preserve">
+    <value>Ulanmoqda...</value>
+  </data>
+  <data name="Status_Connected" xml:space="preserve">
+    <value>Ulandi</value>
+  </data>
+  <data name="Status_ConnectError" xml:space="preserve">
+    <value>Ulanish xatosi</value>
+  </data>
+  <data name="Status_Disconnected" xml:space="preserve">
+    <value>Uzildi</value>
+  </data>
+  <data name="Status_WellsLoaded" xml:space="preserve">
+    <value>Yuklangan quduqlar: {0}</value>
+  </data>
+  <data name="Count_Rows" xml:space="preserve">
+    <value>Yozuvlar: {0} (koʻpi bilan {1} ta koʻrsatiladi)</value>
+  </data>
+  <data name="Count_Operations" xml:space="preserve">
+    <value>Operatsiyalar: {0}</value>
+  </data>
+  <data name="Count_Tools" xml:space="preserve">
+    <value>Asboblar: {0}</value>
+  </data>
+  <data name="Live_Polling" xml:space="preserve">
+    <value>Real vaqt: har {0} s da soʻrov</value>
+  </data>
+  <data name="Live_NoConnection" xml:space="preserve">
+    <value>Real vaqt: ulanish yoʻq</value>
+  </data>
+  <data name="Live_NoWell" xml:space="preserve">
+    <value>Real vaqt: quduq tanlanmagan</value>
+  </data>
+  <data name="Live_Appended" xml:space="preserve">
+    <value>Real vaqt: {0}, +{1}</value>
+  </data>
+  <data name="Live_Updated" xml:space="preserve">
+    <value>Real vaqt: {0}, aniqlangan yozuvlar: {1}</value>
+  </data>
+  <data name="Live_NoNew" xml:space="preserve">
+    <value>Real vaqt: {0}, yangi yozuvlar yoʻq</value>
+  </data>
+  <data name="Live_PollError" xml:space="preserve">
+    <value>Real vaqt: yangilash xatosi — {0}</value>
+  </data>
+  <data name="Live_OperationsError" xml:space="preserve">
+    <value>Real vaqt: operatsiyalar — {0}</value>
+  </data>
+  <data name="Live_ToolsError" xml:space="preserve">
+    <value>Real vaqt: asboblar — {0}</value>
+  </data>
+  <data name="Live_Stopped" xml:space="preserve">
+    <value>Real vaqt oʻchirildi: ketma-ket {0} ta xato</value>
+  </data>
+  <data name="Live_StoppedMessage" xml:space="preserve">
+    <value>Ketma-ket {0} ta muvaffaqiyatsiz urinishdan soʻng avtoyangilash toʻxtatildi.
+
+{1}
+
+Xato takrorlansa, qayta ulaning: Fayl → Bazaga ulanish...</value>
+  </data>
+  <data name="Error_ReadWells" xml:space="preserve">
+    <value>Quduqlarni oʻqishda xato</value>
+  </data>
+  <data name="Error_ReadRaces" xml:space="preserve">
+    <value>Reyslarni oʻqishda xato</value>
+  </data>
+  <data name="Error_ReadData" xml:space="preserve">
+    <value>Maʼlumotlarni oʻqishda xato</value>
+  </data>
+  <data name="Error_ReadOperations" xml:space="preserve">
+    <value>Operatsiyalarni oʻqishda xato</value>
+  </data>
+  <data name="Error_ReadTools" xml:space="preserve">
+    <value>Asboblarni oʻqishda xato</value>
+  </data>
+  <data name="Error_Export" xml:space="preserve">
+    <value>Eksport xatosi</value>
+  </data>
+  <data name="Export_Filter" xml:space="preserve">
+    <value>CSV (*.csv)|*.csv|Barcha fayllar (*.*)|*.*</value>
+  </data>
+  <data name="Export_DataName" xml:space="preserve">
+    <value>GTI maʼlumotlari</value>
+  </data>
+  <data name="Export_Race" xml:space="preserve">
+    <value>Reys {0}</value>
+  </data>
+  <data name="Export_OperationsName" xml:space="preserve">
+    <value>Operatsiyalar</value>
+  </data>
+  <data name="Export_OperationsOfWell" xml:space="preserve">
+    <value>Operatsiyalar — {0}</value>
+  </data>
+  <data name="Conn_Title" xml:space="preserve">
+    <value>Maʼlumotlar bazasiga ulanish</value>
+  </data>
+  <data name="Conn_Server" xml:space="preserve">
+    <value>Server:</value>
+  </data>
+  <data name="Conn_Port" xml:space="preserve">
+    <value>Port:</value>
+  </data>
+  <data name="Conn_Database" xml:space="preserve">
+    <value>Maʼlumotlar bazasiga yoʻl:</value>
+  </data>
+  <data name="Conn_Database_Tip" xml:space="preserve">
+    <value>.FDB fayliga yoʻl yoki Firebird serveriga koʻrinadigan alias</value>
+  </data>
+  <data name="Conn_User" xml:space="preserve">
+    <value>Foydalanuvchi:</value>
+  </data>
+  <data name="Conn_Password" xml:space="preserve">
+    <value>Parol:</value>
+  </data>
+  <data name="Conn_Charset" xml:space="preserve">
+    <value>Kodlash:</value>
+  </data>
+  <data name="Conn_Connect" xml:space="preserve">
+    <value>Ulanish</value>
+  </data>
+  <data name="Conn_Cancel" xml:space="preserve">
+    <value>Bekor qilish</value>
+  </data>
+  <data name="Conn_Caption" xml:space="preserve">
+    <value>Ulanish</value>
+  </data>
+  <data name="Conn_NeedServer" xml:space="preserve">
+    <value>Server manzilini koʻrsating.</value>
+  </data>
+  <data name="Conn_NeedDatabase" xml:space="preserve">
+    <value>Maʼlumotlar bazasiga yoʻlni koʻrsating.</value>
+  </data>
+  <data name="Conn_NeedUser" xml:space="preserve">
+    <value>Foydalanuvchi nomini koʻrsating.</value>
+  </data>
+  <data name="Col_REC_HEADER_ID" xml:space="preserve">
+    <value>Yozuv (ID)</value>
+  </data>
+  <data name="Col_REC_HEADER_ID_Desc" xml:space="preserve">
+    <value>Yozuvning ichki identifikatori.</value>
+  </data>
+  <data name="Col_REC_TIME" xml:space="preserve">
+    <value>Vaqt</value>
+  </data>
+  <data name="Col_REC_TIME_Desc" xml:space="preserve">
+    <value>Yozuv qayd etilgan vaqt.</value>
+  </data>
+  <data name="Col_BOTTOM_DEPTH" xml:space="preserve">
+    <value>Quduq tubi chuqurligi</value>
+  </data>
+  <data name="Col_BOTTOM_DEPTH_Desc" xml:space="preserve">
+    <value>Quduq tubining chuqurligi.</value>
+  </data>
+  <data name="Col_BIT_DEPTH" xml:space="preserve">
+    <value>Dolota chuqurligi</value>
+  </data>
+  <data name="Col_BIT_DEPTH_Desc" xml:space="preserve">
+    <value>Dolota joylashgan chuqurlik.</value>
+  </data>
+  <data name="Col_BOTTOM_LAG_DEPTH" xml:space="preserve">
+    <value>Quduq tubi chuqurligi (lag)</value>
+  </data>
+  <data name="Col_BOTTOM_LAG_DEPTH_Desc" xml:space="preserve">
+    <value>Gaz tahlilining kechikishini hisobga olgan quduq tubi chuqurligi.</value>
+  </data>
+  <data name="Col_TL_POS" xml:space="preserve">
+    <value>№</value>
+  </data>
+  <data name="Col_TL_POS_Desc" xml:space="preserve">
+    <value>Roʻyxatdagi qatorning tartib raqami.</value>
+  </data>
+  <data name="Col_TL_NAME" xml:space="preserve">
+    <value>Nomi</value>
+  </data>
+  <data name="Col_TL_NAME_Desc" xml:space="preserve">
+    <value>Burgʻilash kolonnasi elementi turi: svecha, dolota, UBT, quduq tubi dvigateli va h.k.</value>
+  </data>
+  <data name="Col_TL_BRAND" xml:space="preserve">
+    <value>Markasi</value>
+  </data>
+  <data name="Col_TL_BRAND_Desc" xml:space="preserve">
+    <value>DRILL_STRING_ITEM maʼlumotnomasidagi asbobning aniq tip-oʻlchami.</value>
+  </data>
+  <data name="Col_TL_COUNT" xml:space="preserve">
+    <value>Soni</value>
+  </data>
+  <data name="Col_TL_COUNT_Desc" xml:space="preserve">
+    <value>Ushbu pozitsiyadagi bir xil elementlar soni.</value>
+  </data>
+  <data name="Col_TL_DIAMETER" xml:space="preserve">
+    <value>Diametri</value>
+  </data>
+  <data name="Col_TL_DIAMETER_Desc" xml:space="preserve">
+    <value>Elementning tashqi diametri.</value>
+  </data>
+  <data name="Col_TL_WALL" xml:space="preserve">
+    <value>Devor qalinligi</value>
+  </data>
+  <data name="Col_TL_WALL_Desc" xml:space="preserve">
+    <value>Quvur devorining qalinligi.</value>
+  </data>
+  <data name="Col_TL_WEIGHT_M" xml:space="preserve">
+    <value>Bir metr ogʻirligi</value>
+  </data>
+  <data name="Col_TL_WEIGHT_M_Desc" xml:space="preserve">
+    <value>Bir uzunlik metrining massasi.</value>
+  </data>
+  <data name="Col_TL_LEN" xml:space="preserve">
+    <value>Uzunligi</value>
+  </data>
+  <data name="Col_TL_LEN_Desc" xml:space="preserve">
+    <value>Bitta elementning uzunligi.</value>
+  </data>
+  <data name="Col_TL_TOTAL_LEN" xml:space="preserve">
+    <value>Jami uzunlik</value>
+  </data>
+  <data name="Col_TL_TOTAL_LEN_Desc" xml:space="preserve">
+    <value>Element uzunligining soniga koʻpaytmasi.</value>
+  </data>
+  <data name="Col_TL_TOTAL_WEIGHT" xml:space="preserve">
+    <value>Jami ogʻirlik</value>
+  </data>
+  <data name="Col_TL_TOTAL_WEIGHT_Desc" xml:space="preserve">
+    <value>Bir metr ogʻirligining jami uzunlikka koʻpaytmasi, tonnada.</value>
+  </data>
+  <data name="Col_OP_NUMBER" xml:space="preserve">
+    <value>№</value>
+  </data>
+  <data name="Col_OP_NUMBER_Desc" xml:space="preserve">
+    <value>Operatsiya yozuvining ichki raqami.</value>
+  </data>
+  <data name="Col_WORK_KIND_NAME" xml:space="preserve">
+    <value>Ish turi</value>
+  </data>
+  <data name="Col_WORK_KIND_NAME_Desc" xml:space="preserve">
+    <value>Ish toifasi (WORK_TYPES maʼlumotnomasidan).</value>
+  </data>
+  <data name="Col_OPER_NAME" xml:space="preserve">
+    <value>Operatsiya</value>
+  </data>
+  <data name="Col_OPER_NAME_Desc" xml:space="preserve">
+    <value>Operatsiya nomi (USER_OPER_ID ustuvor, aks holda OPER_ID — OPER_TYPES maʼlumotnomasidan).</value>
+  </data>
+  <data name="Col_SUB_OPER_NAME" xml:space="preserve">
+    <value>Quyi operatsiya</value>
+  </data>
+  <data name="Col_SUB_OPER_NAME_Desc" xml:space="preserve">
+    <value>Aniqlovchi operatsiya (SUBOPER_TYPES maʼlumotnomasidan).</value>
+  </data>
+  <data name="Col_OP_START" xml:space="preserve">
+    <value>Boshlanishi</value>
+  </data>
+  <data name="Col_OP_START_Desc" xml:space="preserve">
+    <value>Operatsiyaning boshlanish vaqti.</value>
+  </data>
+  <data name="Col_OP_STOP" xml:space="preserve">
+    <value>Tugashi</value>
+  </data>
+  <data name="Col_OP_STOP_Desc" xml:space="preserve">
+    <value>Operatsiyaning tugash vaqti.</value>
+  </data>
+  <data name="Col_OP_DURATION_HOURS" xml:space="preserve">
+    <value>Davomiyligi</value>
+  </data>
+  <data name="Col_OP_DURATION_HOURS_Desc" xml:space="preserve">
+    <value>Operatsiyaning soatlardagi davomiyligi.</value>
+  </data>
+  <data name="Col_OP_COMMENT" xml:space="preserve">
+    <value>Izoh</value>
+  </data>
+  <data name="Col_OP_COMMENT_Desc" xml:space="preserve">
+    <value>Operatsiyaga izoh.</value>
+  </data>
+  <data name="Param_woh" xml:space="preserve">
+    <value>Ilgakdagi ogʻirlik</value>
+    <comment>PARAMS.TABLE_FIELD = woh</comment>
+  </data>
+  <data name="Param_mud_pressure" xml:space="preserve">
+    <value>Kirishdagi yuvuvchi suyuqlik bosimi</value>
+    <comment>PARAMS.TABLE_FIELD = mud_pressure</comment>
+  </data>
+  <data name="Param_pump_cnt_N" xml:space="preserve">
+    <value>Nasos yurishlari-{0}</value>
+    <comment>PARAMS.TABLE_FIELD = pump_cnt&lt;N&gt;</comment>
+  </data>
+  <data name="Param_pumps_cnt" xml:space="preserve">
+    <value>Nasoslar yurishlari</value>
+    <comment>PARAMS.TABLE_FIELD = pumps_cnt</comment>
+  </data>
+  <data name="Param_table_torque" xml:space="preserve">
+    <value>Rotorning burovchi momenti</value>
+    <comment>PARAMS.TABLE_FIELD = table_torque</comment>
+  </data>
+  <data name="Param_top_drive_torque" xml:space="preserve">
+    <value>Yuqori yuritmaning burovchi momenti</value>
+    <comment>PARAMS.TABLE_FIELD = top_drive_torque</comment>
+  </data>
+  <data name="Param_rotor_speed" xml:space="preserve">
+    <value>Rotor aylanishlari</value>
+    <comment>PARAMS.TABLE_FIELD = rotor_speed</comment>
+  </data>
+  <data name="Param_top_drive_speed" xml:space="preserve">
+    <value>Yuqori yuritma aylanishlari</value>
+    <comment>PARAMS.TABLE_FIELD = top_drive_speed</comment>
+  </data>
+  <data name="Param_tr_block_pos" xml:space="preserve">
+    <value>Talblok holati</value>
+    <comment>PARAMS.TABLE_FIELD = tr_block_pos</comment>
+  </data>
+  <data name="Param_trav_block_rate" xml:space="preserve">
+    <value>Talblok tezligi</value>
+    <comment>PARAMS.TABLE_FIELD = trav_block_rate</comment>
+  </data>
+  <data name="Param_wob" xml:space="preserve">
+    <value>Dolotaga tushadigan yuklama</value>
+    <comment>PARAMS.TABLE_FIELD = wob</comment>
+  </data>
+  <data name="Param_pipe_wrench_torque" xml:space="preserve">
+    <value>UMK kalitidagi moment</value>
+    <comment>PARAMS.TABLE_FIELD = pipe_wrench_torque</comment>
+  </data>
+  <data name="Param_akb_wrench_torque" xml:space="preserve">
+    <value>AKB kalitidagi moment</value>
+    <comment>PARAMS.TABLE_FIELD = akb_wrench_torque</comment>
+  </data>
+  <data name="Param_volume_N" xml:space="preserve">
+    <value>Sigʻimdagi hajm-{0}</value>
+    <comment>PARAMS.TABLE_FIELD = volume&lt;N&gt;</comment>
+  </data>
+  <data name="Param_active_volume" xml:space="preserve">
+    <value>Faol sigʻimlardagi hajm</value>
+    <comment>PARAMS.TABLE_FIELD = active_volume</comment>
+  </data>
+  <data name="Param_slugging_volume" xml:space="preserve">
+    <value>Toʻldirish sigʻimlaridagi hajm</value>
+    <comment>PARAMS.TABLE_FIELD = slugging_volume</comment>
+  </data>
+  <data name="Param_reception_volume" xml:space="preserve">
+    <value>Qabul qilish sigʻimlaridagi hajm</value>
+    <comment>PARAMS.TABLE_FIELD = reception_volume</comment>
+  </data>
+  <data name="Param_level_N" xml:space="preserve">
+    <value>Sath-{0}</value>
+    <comment>PARAMS.TABLE_FIELD = level&lt;N&gt;</comment>
+  </data>
+  <data name="Param_mud_density_in" xml:space="preserve">
+    <value>Kirishdagi zichlik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_density_in</comment>
+  </data>
+  <data name="Param_mud_density_out" xml:space="preserve">
+    <value>Chiqishdagi zichlik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_density_out</comment>
+  </data>
+  <data name="Param_mud_temp_in" xml:space="preserve">
+    <value>Kirishdagi harorat</value>
+    <comment>PARAMS.TABLE_FIELD = mud_temp_in</comment>
+  </data>
+  <data name="Param_mud_temp_out" xml:space="preserve">
+    <value>Chiqishdagi harorat</value>
+    <comment>PARAMS.TABLE_FIELD = mud_temp_out</comment>
+  </data>
+  <data name="Param_mud_cond_in" xml:space="preserve">
+    <value>Kirishdagi elektr oʻtkazuvchanlik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_cond_in</comment>
+  </data>
+  <data name="Param_mud_cond_out" xml:space="preserve">
+    <value>Chiqishdagi elektr oʻtkazuvchanlik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_cond_out</comment>
+  </data>
+  <data name="Param_mud_res_in" xml:space="preserve">
+    <value>Kirishdagi solishtirma qarshilik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_res_in</comment>
+  </data>
+  <data name="Param_mud_res_out" xml:space="preserve">
+    <value>Chiqishdagi solishtirma qarshilik</value>
+    <comment>PARAMS.TABLE_FIELD = mud_res_out</comment>
+  </data>
+  <data name="Param_circ_rate_in" xml:space="preserve">
+    <value>Kirishdagi yuvuvchi suyuqlik sarfi</value>
+    <comment>PARAMS.TABLE_FIELD = circ_rate_in</comment>
+  </data>
+  <data name="Param_circ_rate_out" xml:space="preserve">
+    <value>Chiqishdagi yuvuvchi suyuqlik sarfi</value>
+    <comment>PARAMS.TABLE_FIELD = circ_rate_out</comment>
+  </data>
+  <data name="Param_trip_rate" xml:space="preserve">
+    <value>Tushirish-koʻtarish tezligi</value>
+    <comment>PARAMS.TABLE_FIELD = trip_rate</comment>
+  </data>
+  <data name="Param_drilling_rate" xml:space="preserve">
+    <value>Mexanik tezlik</value>
+    <comment>PARAMS.TABLE_FIELD = drilling_rate</comment>
+  </data>
+  <data name="Param_rop" xml:space="preserve">
+    <value>Burgʻilash tezligi</value>
+    <comment>PARAMS.TABLE_FIELD = rop</comment>
+  </data>
+  <data name="Param_drilling_time_log" xml:space="preserve">
+    <value>DMK</value>
+    <comment>PARAMS.TABLE_FIELD = drilling_time_log</comment>
+  </data>
+  <data name="Param_drilling_time_log1" xml:space="preserve">
+    <value>DMK1</value>
+    <comment>PARAMS.TABLE_FIELD = drilling_time_log1</comment>
+  </data>
+  <data name="Param_summ_gaz" xml:space="preserve">
+    <value>Gazlar yigʻindisi (xrom.)</value>
+    <comment>PARAMS.TABLE_FIELD = summ_gaz</comment>
+  </data>
+  <data name="Param_summ_gaz3" xml:space="preserve">
+    <value>Tashqi gaz yigʻindisi</value>
+    <comment>PARAMS.TABLE_FIELD = summ_gaz3</comment>
+  </data>
+  <data name="Param_summ_int" xml:space="preserve">
+    <value>Ichki gaz yigʻindisi</value>
+    <comment>PARAMS.TABLE_FIELD = summ_int</comment>
+  </data>
+  <data name="Param_c1" xml:space="preserve">
+    <value>Metan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c1</comment>
+  </data>
+  <data name="Param_c2" xml:space="preserve">
+    <value>Etan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c2</comment>
+  </data>
+  <data name="Param_c3" xml:space="preserve">
+    <value>Propan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c3</comment>
+  </data>
+  <data name="Param_c4" xml:space="preserve">
+    <value>Butan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c4</comment>
+  </data>
+  <data name="Param_c5" xml:space="preserve">
+    <value>Pentan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c5</comment>
+  </data>
+  <data name="Param_c6" xml:space="preserve">
+    <value>Geksan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c6</comment>
+  </data>
+  <data name="Param_c2i" xml:space="preserve">
+    <value>Izoetan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c2i</comment>
+  </data>
+  <data name="Param_c3i" xml:space="preserve">
+    <value>Izopropan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c3i</comment>
+  </data>
+  <data name="Param_c4i" xml:space="preserve">
+    <value>Izobutan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c4i</comment>
+  </data>
+  <data name="Param_c5i" xml:space="preserve">
+    <value>Izopentan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c5i</comment>
+  </data>
+  <data name="Param_c6i" xml:space="preserve">
+    <value>Izogeksan abs.</value>
+    <comment>PARAMS.TABLE_FIELD = c6i</comment>
+  </data>
+  <data name="Param_c1r" xml:space="preserve">
+    <value>Metan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c1r</comment>
+  </data>
+  <data name="Param_c2r" xml:space="preserve">
+    <value>Etan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c2r</comment>
+  </data>
+  <data name="Param_c3r" xml:space="preserve">
+    <value>Propan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c3r</comment>
+  </data>
+  <data name="Param_c4r" xml:space="preserve">
+    <value>Butan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c4r</comment>
+  </data>
+  <data name="Param_c5r" xml:space="preserve">
+    <value>Pentan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c5r</comment>
+  </data>
+  <data name="Param_c6r" xml:space="preserve">
+    <value>Geksan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c6r</comment>
+  </data>
+  <data name="Param_c4ir" xml:space="preserve">
+    <value>Izobutan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c4ir</comment>
+  </data>
+  <data name="Param_c5ir" xml:space="preserve">
+    <value>Izopentan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c5ir</comment>
+  </data>
+  <data name="Param_c6ir" xml:space="preserve">
+    <value>Izogeksan nisb.</value>
+    <comment>PARAMS.TABLE_FIELD = c6ir</comment>
+  </data>
+  <data name="Unit_0442" xml:space="preserve">
+    <value>t</value>
+    <comment>Unit: т</comment>
+  </data>
+  <data name="Unit_0442002E" xml:space="preserve">
+    <value>t</value>
+    <comment>Unit: т.</comment>
+  </data>
+  <data name="Unit_04300442043C002E" xml:space="preserve">
+    <value>atm.</value>
+    <comment>Unit: атм.</comment>
+  </data>
+  <data name="Unit_04300442043C" xml:space="preserve">
+    <value>atm</value>
+    <comment>Unit: атм</comment>
+  </data>
+  <data name="Unit_0445043E0434002F043C0438043D" xml:space="preserve">
+    <value>yurish/daq</value>
+    <comment>Unit: ход/мин</comment>
+  </data>
+  <data name="Unit_043E0431002F043C0438043D" xml:space="preserve">
+    <value>ayl/daq</value>
+    <comment>Unit: об/мин</comment>
+  </data>
+  <data name="Unit_043A041D002A043C" xml:space="preserve">
+    <value>kN*m</value>
+    <comment>Unit: кН*м</comment>
+  </data>
+  <data name="Unit_043C" xml:space="preserve">
+    <value>m</value>
+    <comment>Unit: м</comment>
+  </data>
+  <data name="Unit_043C043C" xml:space="preserve">
+    <value>mm</value>
+    <comment>Unit: мм</comment>
+  </data>
+  <data name="Unit_043A0433" xml:space="preserve">
+    <value>kg</value>
+    <comment>Unit: кг</comment>
+  </data>
+  <data name="Unit_043C00B3" xml:space="preserve">
+    <value>m³</value>
+    <comment>Unit: м³</comment>
+  </data>
+  <data name="Unit_0433002F0441043C00B3" xml:space="preserve">
+    <value>g/sm³</value>
+    <comment>Unit: г/см³</comment>
+  </data>
+  <data name="Unit_00B00421" xml:space="preserve">
+    <value>°C</value>
+    <comment>Unit: °С</comment>
+  </data>
+  <data name="Unit_0421043C002F043C" xml:space="preserve">
+    <value>Sm/m</value>
+    <comment>Unit: См/м</comment>
+  </data>
+  <data name="Unit_041E043C002A043C" xml:space="preserve">
+    <value>Om*m</value>
+    <comment>Unit: Ом*м</comment>
+  </data>
+  <data name="Unit_043B002F0441" xml:space="preserve">
+    <value>l/s</value>
+    <comment>Unit: л/с</comment>
+  </data>
+  <data name="Unit_043C002F0441" xml:space="preserve">
+    <value>m/s</value>
+    <comment>Unit: м/с</comment>
+  </data>
+  <data name="Unit_043C002F0447" xml:space="preserve">
+    <value>m/soat</value>
+    <comment>Unit: м/ч</comment>
+  </data>
+  <data name="Unit_043C0438043D002F043C" xml:space="preserve">
+    <value>daq/m</value>
+    <comment>Unit: мин/м</comment>
+  </data>
+  <data name="Unit_044704300441" xml:space="preserve">
+    <value>soat</value>
+    <comment>Unit: час</comment>
+  </data>
+</root>

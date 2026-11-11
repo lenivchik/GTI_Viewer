@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Input;
 using FirebirdViewer.Commands;
+using FirebirdViewer.Localization;
 using FirebirdViewer.Models;
 
 namespace FirebirdViewer.ViewModels;
@@ -22,7 +23,9 @@ public sealed class ChartPanelViewModel : ObservableObject
 {
     public ChartPanelViewModel(int number)
     {
-        Title = $"График {number}";
+        _number = number;
+        _defaultTitle = Loc.F("Chart_DefaultTitle", number);
+        _title = _defaultTitle;
         Parameters = new ObservableCollection<ChartParameterRef>();
         LegendItems = new ObservableCollection<ChartParameterRef>();
         SelectionStats = new ObservableCollection<CurveStat>();
@@ -78,6 +81,31 @@ public sealed class ChartPanelViewModel : ObservableObject
 
     private string _title;
     public string Title { get => _title; set => SetProperty(ref _title, value); }
+
+    private readonly int _number;
+
+    /// <summary>The «График N» the panel was created with, in the language of the moment.</summary>
+    private string _defaultTitle;
+
+    /// <summary>
+    /// Called by <see cref="MainViewModel"/> after the interface language changed, with the
+    /// relabelled columns. Same data, new names: curves, legend and axis titles are redrawn,
+    /// and — as after a real-time append — the zoom window the user is looking at is kept.
+    /// </summary>
+    public void OnLanguageChanged(IEnumerable<ColumnVisibility> columns)
+    {
+        var newDefault = Loc.F("Chart_DefaultTitle", _number);
+        if (Title == _defaultTitle) Title = newDefault;   // a title the user typed is left alone
+        _defaultTitle = newDefault;
+
+        // The band summary quotes its range in the old language; the user can drag it again.
+        if (SelectionRangeText is not null) ClearSelection();
+
+        SyncParameters(columns);
+        BuildSeries();
+        RebuildLegend();
+        LiveRenderRequested?.Invoke();
+    }
 
     // ---- X axis: time or depth ------------------------------------------------
 
@@ -281,7 +309,7 @@ public sealed class ChartPanelViewModel : ObservableObject
     {
         SelectionStats.Clear();
         foreach (var s in stats) SelectionStats.Add(s);
-        SelectionRangeText = stats.Count > 0 ? $"Участок: {rangeText}" : $"Участок: {rangeText} — нет точек";
+        SelectionRangeText = Loc.F(stats.Count > 0 ? "Selection_Range" : "Selection_RangeEmpty", rangeText);
         OnPropertyChanged(nameof(HasSelectionStats));
     }
 
@@ -316,8 +344,22 @@ public sealed class ChartPanelViewModel : ObservableObject
 /// <summary>How a curve's line is drawn.</summary>
 public enum CurveLineType { Solid, Dashed, Dotted, Step }
 
-/// <summary>A selectable line-type with its Russian label (for the combo box).</summary>
-public sealed record LineTypeOption(CurveLineType Value, string Label);
+/// <summary>A selectable line type for the combo box; the label follows the interface language.</summary>
+public sealed class LineTypeOption : ObservableObject
+{
+    private readonly string _labelKey;
+
+    public LineTypeOption(CurveLineType value, string labelKey)
+    {
+        Value = value;
+        _labelKey = labelKey;
+        // The options live in a static list for the whole run, so this never needs undoing.
+        Loc.LanguageChanged += (_, _) => OnPropertyChanged(nameof(Label));
+    }
+
+    public CurveLineType Value { get; }
+    public string Label => Loc.T(_labelKey);
+}
 
 /// <summary>One parameter row in a chart's parameter popup, with its appearance.</summary>
 public sealed class ChartParameterRef : ObservableObject
@@ -368,10 +410,10 @@ public sealed class ChartParameterRef : ObservableObject
     /// <summary>Line types the user can pick from (bound by the XAML combo).</summary>
     public static System.Collections.Generic.IReadOnlyList<LineTypeOption> LineTypeOptions { get; } = new[]
     {
-        new LineTypeOption(CurveLineType.Solid,  "Сплошная"),
-        new LineTypeOption(CurveLineType.Dashed, "Пунктир"),
-        new LineTypeOption(CurveLineType.Dotted, "Точки"),
-        new LineTypeOption(CurveLineType.Step,   "Ступенчатая"),
+        new LineTypeOption(CurveLineType.Solid,  "LineType_Solid"),
+        new LineTypeOption(CurveLineType.Dashed, "LineType_Dashed"),
+        new LineTypeOption(CurveLineType.Dotted, "LineType_Dotted"),
+        new LineTypeOption(CurveLineType.Step,   "LineType_Step"),
     };
 
     /// <summary>Line thicknesses the user can pick from (bound by the XAML combo).</summary>

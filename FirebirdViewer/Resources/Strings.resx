@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Russian (neutral language). Parameter names in Russian come from the database (PARAMS.FULL_NAME), so this file has no Param_* / Unit_* entries.
+  Keys: letters, digits and underscores only (they are used inside XAML binding paths).
+  {0}, {1} ... are placeholders filled in by the program; keep them in every translation.
+  "_" before a letter in a menu caption marks the Alt access key.
+-->
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App_Title" xml:space="preserve">
+    <value>Просмотр данных ГТИ</value>
+  </data>
+  <data name="App_TitleWithWell" xml:space="preserve">
+    <value>Просмотр данных ГТИ: {0} — {1}</value>
+  </data>
+  <data name="App_AllRacesLower" xml:space="preserve">
+    <value>все рейсы</value>
+  </data>
+  <data name="App_UnhandledError" xml:space="preserve">
+    <value>Непредвиденная ошибка</value>
+  </data>
+  <data name="App_FatalError" xml:space="preserve">
+    <value>Критическая ошибка</value>
+  </data>
+  <data name="Menu_File" xml:space="preserve">
+    <value>_Файл</value>
+  </data>
+  <data name="Menu_Connect" xml:space="preserve">
+    <value>_Подключиться к базе...</value>
+  </data>
+  <data name="Menu_Disconnect" xml:space="preserve">
+    <value>_Отключиться</value>
+  </data>
+  <data name="Menu_Recent" xml:space="preserve">
+    <value>_Недавние подключения</value>
+  </data>
+  <data name="Menu_ClearRecent" xml:space="preserve">
+    <value>О_чистить список</value>
+  </data>
+  <data name="Menu_ExportTable" xml:space="preserve">
+    <value>_Сохранить таблицу в CSV...</value>
+  </data>
+  <data name="Menu_ExportOperations" xml:space="preserve">
+    <value>Сохранить _операции в CSV...</value>
+  </data>
+  <data name="Menu_Exit" xml:space="preserve">
+    <value>В_ыход</value>
+  </data>
+  <data name="Menu_Edit" xml:space="preserve">
+    <value>_Правка</value>
+  </data>
+  <data name="Menu_Copy" xml:space="preserve">
+    <value>_Копировать выделенное</value>
+  </data>
+  <data name="Menu_View" xml:space="preserve">
+    <value>_Показать</value>
+  </data>
+  <data name="Menu_ShowAllColumns" xml:space="preserve">
+    <value>Показать _все колонки</value>
+  </data>
+  <data name="Menu_MoveColumnUp" xml:space="preserve">
+    <value>Переместить колонку в_верх</value>
+  </data>
+  <data name="Menu_MoveColumnDown" xml:space="preserve">
+    <value>Переместить колонку в_низ</value>
+  </data>
+  <data name="Menu_Refresh" xml:space="preserve">
+    <value>_Обновить данные</value>
+  </data>
+  <data name="Menu_Live" xml:space="preserve">
+    <value>_Реальное время</value>
+  </data>
+  <data name="Menu_Live_Tip" xml:space="preserve">
+    <value>Автоматически подтягивать новые записи из базы</value>
+  </data>
+  <data name="Menu_Language" xml:space="preserve">
+    <value>_Язык</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>_Справка</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>_О программе</value>
+  </data>
+  <data name="About_Title" xml:space="preserve">
+    <value>О программе</value>
+  </data>
+  <data name="About_Text" xml:space="preserve">
+    <value>Просмотр данных ГТИ
+Версия {0}
+
+Программа для удобного просмотра данных ГТИ из базы Firebird.
+Названия параметров взяты из системы GtiRealtimeCharts.</value>
+  </data>
+  <data name="Live_Toggle" xml:space="preserve">
+    <value>Реальное время</value>
+  </data>
+  <data name="Live_Toggle_Tip" xml:space="preserve">
+    <value>Автоматически подтягивать новые записи по мере их появления в базе (F9)</value>
+  </data>
+  <data name="Live_Interval_Tip" xml:space="preserve">
+    <value>Как часто опрашивать базу</value>
+  </data>
+  <data name="Live_On_Tip" xml:space="preserve">
+    <value>Реальное время включено</value>
+  </data>
+  <data name="Live_Off_Tip" xml:space="preserve">
+    <value>Реальное время выключено</value>
+  </data>
+  <data name="Interval_Seconds" xml:space="preserve">
+    <value>{0} с</value>
+  </data>
+  <data name="Interval_Minutes" xml:space="preserve">
+    <value>{0} мин</value>
+  </data>
+  <data name="RowLimit_Label" xml:space="preserve">
+    <value>Показывать записей:</value>
+  </data>
+  <data name="RowLimit_Tip" xml:space="preserve">
+    <value>Максимальное число строк, загружаемых из базы</value>
+  </data>
+  <data name="Refresh_Button" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Refresh_Tip" xml:space="preserve">
+    <value>Перечитать данные текущей скважины и рейса (F5)</value>
+  </data>
+  <data name="Well_Label" xml:space="preserve">
+    <value>Скважина:</value>
+  </data>
+  <data name="Well_Tip" xml:space="preserve">
+    <value>Выберите скважину для просмотра</value>
+  </data>
+  <data name="Race_Label" xml:space="preserve">
+    <value>Рейс:</value>
+  </data>
+  <data name="Race_Tip" xml:space="preserve">
+    <value>Ограничьте просмотр одним рейсом или выберите «Все рейсы»</value>
+  </data>
+  <data name="Well_WithCluster" xml:space="preserve">
+    <value>{0}  ·  куст {1}</value>
+  </data>
+  <data name="Race_All" xml:space="preserve">
+    <value>Все рейсы</value>
+  </data>
+  <data name="Race_Number" xml:space="preserve">
+    <value>Рейс №{0}</value>
+  </data>
+  <data name="Race_Since" xml:space="preserve">
+    <value>с {0}</value>
+  </data>
+  <data name="Tab_Charts" xml:space="preserve">
+    <value>Графики</value>
+  </data>
+  <data name="Tab_Table" xml:space="preserve">
+    <value>Таблица</value>
+  </data>
+  <data name="Tab_Tools" xml:space="preserve">
+    <value>Инструменты</value>
+  </data>
+  <data name="Tab_Operations" xml:space="preserve">
+    <value>Операции</value>
+  </data>
+  <data name="Chart_Add" xml:space="preserve">
+    <value>+ Добавить график</value>
+  </data>
+  <data name="Chart_Add_Tip" xml:space="preserve">
+    <value>Создать ещё одну панель графика</value>
+  </data>
+  <data name="Chart_Orientation" xml:space="preserve">
+    <value>Ориентация:</value>
+  </data>
+  <data name="Chart_Horizontal" xml:space="preserve">
+    <value>Горизонтальная</value>
+  </data>
+  <data name="Chart_Horizontal_Tip" xml:space="preserve">
+    <value>Графики располагаются друг под другом</value>
+  </data>
+  <data name="Chart_Vertical" xml:space="preserve">
+    <value>Вертикальная</value>
+  </data>
+  <data name="Chart_Vertical_Tip" xml:space="preserve">
+    <value>Графики располагаются слева направо; новые добавляются справа</value>
+  </data>
+  <data name="Chart_DefaultTitle" xml:space="preserve">
+    <value>График {0}</value>
+  </data>
+  <data name="Chart_Remove_Tip" xml:space="preserve">
+    <value>Удалить этот график</value>
+  </data>
+  <data name="Chart_Title_Tip" xml:space="preserve">
+    <value>Название графика</value>
+  </data>
+  <data name="Chart_XAxis" xml:space="preserve">
+    <value>Ось X:</value>
+  </data>
+  <data name="Chart_Time" xml:space="preserve">
+    <value>Время</value>
+  </data>
+  <data name="Chart_Depth" xml:space="preserve">
+    <value>Глубина забоя</value>
+  </data>
+  <data name="Chart_Params" xml:space="preserve">
+    <value>Параметры ▾</value>
+  </data>
+  <data name="Chart_Params_Tip" xml:space="preserve">
+    <value>Выбрать параметры для построения</value>
+  </data>
+  <data name="Chart_SeparateScales" xml:space="preserve">
+    <value>Своя шкала для каждой кривой</value>
+  </data>
+  <data name="Chart_SeparateScales_Tip" xml:space="preserve">
+    <value>Каждая кривая получает свою ось значений (для разных диапазонов)</value>
+  </data>
+  <data name="Chart_Zoom" xml:space="preserve">
+    <value>Масштаб:</value>
+  </data>
+  <data name="Chart_ZoomOut_Tip" xml:space="preserve">
+    <value>Уменьшить масштаб (показать больший интервал)</value>
+  </data>
+  <data name="Chart_ZoomIn_Tip" xml:space="preserve">
+    <value>Увеличить масштаб (показать меньший интервал)</value>
+  </data>
+  <data name="Chart_ZoomReset" xml:space="preserve">
+    <value>Весь диапазон</value>
+  </data>
+  <data name="Chart_ZoomReset_Tip" xml:space="preserve">
+    <value>Показать все данные</value>
+  </data>
+  <data name="Chart_Cursor_Tip" xml:space="preserve">
+    <value>Положение курсора по оси времени / глубины</value>
+  </data>
+  <data name="Chart_Plot_Tip" xml:space="preserve">
+    <value>Ctrl + колесо — масштаб; колесо — прокрутка страницы;
+двойной клик по точке — значение;
+Shift + протяните мышью — среднее / мин / макс по участку</value>
+  </data>
+  <data name="Chart_RenderError" xml:space="preserve">
+    <value>Ошибка построения графика: {0}</value>
+  </data>
+  <data name="Axis_Value" xml:space="preserve">
+    <value>Значение</value>
+  </data>
+  <data name="Axis_DepthWithUnit" xml:space="preserve">
+    <value>Глубина забоя, м</value>
+  </data>
+  <data name="Fmt_Meters" xml:space="preserve">
+    <value>{0} м</value>
+  </data>
+  <data name="Selection_DepthRange" xml:space="preserve">
+    <value>глубина {0} – {1} м</value>
+  </data>
+  <data name="Selection_Clear" xml:space="preserve">
+    <value>Очистить</value>
+  </data>
+  <data name="Selection_Range" xml:space="preserve">
+    <value>Участок: {0}</value>
+  </data>
+  <data name="Selection_RangeEmpty" xml:space="preserve">
+    <value>Участок: {0} — нет точек</value>
+  </data>
+  <data name="Stat_Avg" xml:space="preserve">
+    <value>сред: </value>
+  </data>
+  <data name="Stat_Min" xml:space="preserve">
+    <value>мин: </value>
+  </data>
+  <data name="Stat_Max" xml:space="preserve">
+    <value>макс: </value>
+  </data>
+  <data name="Stat_Count" xml:space="preserve">
+    <value>точек: </value>
+  </data>
+  <data name="Legend_Tip" xml:space="preserve">
+    <value>Нажмите, чтобы настроить вид кривой</value>
+  </data>
+  <data name="Legend_Color" xml:space="preserve">
+    <value>Цвет</value>
+  </data>
+  <data name="Legend_LineType" xml:space="preserve">
+    <value>Тип линии</value>
+  </data>
+  <data name="Legend_LineWidth" xml:space="preserve">
+    <value>Толщина линии</value>
+  </data>
+  <data name="LineType_Solid" xml:space="preserve">
+    <value>Сплошная</value>
+  </data>
+  <data name="LineType_Dashed" xml:space="preserve">
+    <value>Пунктир</value>
+  </data>
+  <data name="LineType_Dotted" xml:space="preserve">
+    <value>Точки</value>
+  </data>
+  <data name="LineType_Step" xml:space="preserve">
+    <value>Ступенчатая</value>
+  </data>
+  <data name="Columns_Header" xml:space="preserve">
+    <value>Показывать колонки</value>
+  </data>
+  <data name="Columns_Up" xml:space="preserve">
+    <value>Вверх</value>
+  </data>
+  <data name="Columns_Up_Tip" xml:space="preserve">
+    <value>Переместить выбранную колонку вверх</value>
+  </data>
+  <data name="Columns_Down" xml:space="preserve">
+    <value>Вниз</value>
+  </data>
+  <data name="Columns_Down_Tip" xml:space="preserve">
+    <value>Переместить выбранную колонку вниз</value>
+  </data>
+  <data name="Columns_All" xml:space="preserve">
+    <value>Все</value>
+  </data>
+  <data name="Columns_All_Tip" xml:space="preserve">
+    <value>Показать или скрыть сразу все колонки</value>
+  </data>
+  <data name="Cursor_Record" xml:space="preserve">
+    <value>Запись {0} · {1}: {2}</value>
+  </data>
+  <data name="Status_NotConnected" xml:space="preserve">
+    <value>Не подключено</value>
+  </data>
+  <data name="Status_Connecting" xml:space="preserve">
+    <value>Подключение...</value>
+  </data>
+  <data name="Status_Connected" xml:space="preserve">
+    <value>Подключено</value>
+  </data>
+  <data name="Status_ConnectError" xml:space="preserve">
+    <value>Ошибка подключения</value>
+  </data>
+  <data name="Status_Disconnected" xml:space="preserve">
+    <value>Отключено</value>
+  </data>
+  <data name="Status_WellsLoaded" xml:space="preserve">
+    <value>Скважин загружено: {0}</value>
+  </data>
+  <data name="Count_Rows" xml:space="preserve">
+    <value>Записей: {0} (показано не более {1})</value>
+  </data>
+  <data name="Count_Operations" xml:space="preserve">
+    <value>Операций: {0}</value>
+  </data>
+  <data name="Count_Tools" xml:space="preserve">
+    <value>Инструмент: {0}</value>
+  </data>
+  <data name="Live_Polling" xml:space="preserve">
+    <value>Реальное время: опрос каждые {0} с</value>
+  </data>
+  <data name="Live_NoConnection" xml:space="preserve">
+    <value>Реальное время: нет подключения</value>
+  </data>
+  <data name="Live_NoWell" xml:space="preserve">
+    <value>Реальное время: скважина не выбрана</value>
+  </data>
+  <data name="Live_Appended" xml:space="preserve">
+    <value>Реальное время: {0}, +{1}</value>
+  </data>
+  <data name="Live_Updated" xml:space="preserve">
+    <value>Реальное время: {0}, уточнено записей: {1}</value>
+  </data>
+  <data name="Live_NoNew" xml:space="preserve">
+    <value>Реальное время: {0}, новых записей нет</value>
+  </data>
+  <data name="Live_PollError" xml:space="preserve">
+    <value>Реальное время: ошибка обновления — {0}</value>
+  </data>
+  <data name="Live_OperationsError" xml:space="preserve">
+    <value>Реальное время: операции — {0}</value>
+  </data>
+  <data name="Live_ToolsError" xml:space="preserve">
+    <value>Реальное время: инструмент — {0}</value>
+  </data>
+  <data name="Live_Stopped" xml:space="preserve">
+    <value>Реальное время выключено: {0} ошибки подряд</value>
+  </data>
+  <data name="Live_StoppedMessage" xml:space="preserve">
+    <value>Автообновление остановлено после {0} неудачных попыток подряд.
+
+{1}
+
+Если ошибка повторяется, переподключитесь: Файл → Подключиться к базе...</value>
+  </data>
+  <data name="Error_ReadWells" xml:space="preserve">
+    <value>Ошибка чтения скважин</value>
+  </data>
+  <data name="Error_ReadRaces" xml:space="preserve">
+    <value>Ошибка чтения рейсов</value>
+  </data>
+  <data name="Error_ReadData" xml:space="preserve">
+    <value>Ошибка чтения данных</value>
+  </data>
+  <data name="Error_ReadOperations" xml:space="preserve">
+    <value>Ошибка чтения операций</value>
+  </data>
+  <data name="Error_ReadTools" xml:space="preserve">
+    <value>Ошибка чтения инструмента</value>
+  </data>
+  <data name="Error_Export" xml:space="preserve">
+    <value>Ошибка экспорта</value>
+  </data>
+  <data name="Export_Filter" xml:space="preserve">
+    <value>CSV (*.csv)|*.csv|Все файлы (*.*)|*.*</value>
+  </data>
+  <data name="Export_DataName" xml:space="preserve">
+    <value>Данные ГТИ</value>
+  </data>
+  <data name="Export_Race" xml:space="preserve">
+    <value>Рейс {0}</value>
+  </data>
+  <data name="Export_OperationsName" xml:space="preserve">
+    <value>Операции</value>
+  </data>
+  <data name="Export_OperationsOfWell" xml:space="preserve">
+    <value>Операции — {0}</value>
+  </data>
+  <data name="Conn_Title" xml:space="preserve">
+    <value>Подключение к базе данных</value>
+  </data>
+  <data name="Conn_Server" xml:space="preserve">
+    <value>Сервер:</value>
+  </data>
+  <data name="Conn_Port" xml:space="preserve">
+    <value>Порт:</value>
+  </data>
+  <data name="Conn_Database" xml:space="preserve">
+    <value>Путь к базе данных:</value>
+  </data>
+  <data name="Conn_Database_Tip" xml:space="preserve">
+    <value>Путь к .FDB файлу или алиас, видимый сервером Firebird</value>
+  </data>
+  <data name="Conn_User" xml:space="preserve">
+    <value>Пользователь:</value>
+  </data>
+  <data name="Conn_Password" xml:space="preserve">
+    <value>Пароль:</value>
+  </data>
+  <data name="Conn_Charset" xml:space="preserve">
+    <value>Кодировка:</value>
+  </data>
+  <data name="Conn_Connect" xml:space="preserve">
+    <value>Подключиться</value>
+  </data>
+  <data name="Conn_Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Conn_Caption" xml:space="preserve">
+    <value>Подключение</value>
+  </data>
+  <data name="Conn_NeedServer" xml:space="preserve">
+    <value>Укажите адрес сервера.</value>
+  </data>
+  <data name="Conn_NeedDatabase" xml:space="preserve">
+    <value>Укажите путь к базе данных.</value>
+  </data>
+  <data name="Conn_NeedUser" xml:space="preserve">
+    <value>Укажите имя пользователя.</value>
+  </data>
+  <data name="Col_REC_HEADER_ID" xml:space="preserve">
+    <value>Запись (ID)</value>
+  </data>
+  <data name="Col_REC_HEADER_ID_Desc" xml:space="preserve">
+    <value>Внутренний идентификатор записи.</value>
+  </data>
+  <data name="Col_REC_TIME" xml:space="preserve">
+    <value>Время</value>
+  </data>
+  <data name="Col_REC_TIME_Desc" xml:space="preserve">
+    <value>Момент регистрации записи.</value>
+  </data>
+  <data name="Col_BOTTOM_DEPTH" xml:space="preserve">
+    <value>Глубина забоя</value>
+  </data>
+  <data name="Col_BOTTOM_DEPTH_Desc" xml:space="preserve">
+    <value>Глубина забоя скважины.</value>
+  </data>
+  <data name="Col_BIT_DEPTH" xml:space="preserve">
+    <value>Глубина долота</value>
+  </data>
+  <data name="Col_BIT_DEPTH_Desc" xml:space="preserve">
+    <value>Глубина положения долота.</value>
+  </data>
+  <data name="Col_BOTTOM_LAG_DEPTH" xml:space="preserve">
+    <value>Глубина забоя (лаг)</value>
+  </data>
+  <data name="Col_BOTTOM_LAG_DEPTH_Desc" xml:space="preserve">
+    <value>Глубина забоя с учётом отставания газового анализа.</value>
+  </data>
+  <data name="Col_TL_POS" xml:space="preserve">
+    <value>№</value>
+  </data>
+  <data name="Col_TL_POS_Desc" xml:space="preserve">
+    <value>Порядковый номер строки в списке.</value>
+  </data>
+  <data name="Col_TL_NAME" xml:space="preserve">
+    <value>Название</value>
+  </data>
+  <data name="Col_TL_NAME_Desc" xml:space="preserve">
+    <value>Тип элемента колонны: свеча, долото, УБТ, забойный двигатель и т. д.</value>
+  </data>
+  <data name="Col_TL_BRAND" xml:space="preserve">
+    <value>Марка</value>
+  </data>
+  <data name="Col_TL_BRAND_Desc" xml:space="preserve">
+    <value>Конкретный типоразмер инструмента из справочника DRILL_STRING_ITEM.</value>
+  </data>
+  <data name="Col_TL_COUNT" xml:space="preserve">
+    <value>Кол-во</value>
+  </data>
+  <data name="Col_TL_COUNT_Desc" xml:space="preserve">
+    <value>Число одинаковых элементов в этой позиции.</value>
+  </data>
+  <data name="Col_TL_DIAMETER" xml:space="preserve">
+    <value>Диаметр</value>
+  </data>
+  <data name="Col_TL_DIAMETER_Desc" xml:space="preserve">
+    <value>Наружный диаметр элемента.</value>
+  </data>
+  <data name="Col_TL_WALL" xml:space="preserve">
+    <value>Толщина стенки</value>
+  </data>
+  <data name="Col_TL_WALL_Desc" xml:space="preserve">
+    <value>Толщина стенки трубы.</value>
+  </data>
+  <data name="Col_TL_WEIGHT_M" xml:space="preserve">
+    <value>Вес погонного метра</value>
+  </data>
+  <data name="Col_TL_WEIGHT_M_Desc" xml:space="preserve">
+    <value>Масса одного погонного метра.</value>
+  </data>
+  <data name="Col_TL_LEN" xml:space="preserve">
+    <value>Длина</value>
+  </data>
+  <data name="Col_TL_LEN_Desc" xml:space="preserve">
+    <value>Длина одного элемента.</value>
+  </data>
+  <data name="Col_TL_TOTAL_LEN" xml:space="preserve">
+    <value>Сумм. длина</value>
+  </data>
+  <data name="Col_TL_TOTAL_LEN_Desc" xml:space="preserve">
+    <value>Длина элемента, умноженная на количество.</value>
+  </data>
+  <data name="Col_TL_TOTAL_WEIGHT" xml:space="preserve">
+    <value>Сумм. вес</value>
+  </data>
+  <data name="Col_TL_TOTAL_WEIGHT_Desc" xml:space="preserve">
+    <value>Вес погонного метра, умноженный на суммарную длину, в тоннах.</value>
+  </data>
+  <data name="Col_OP_NUMBER" xml:space="preserve">
+    <value>№</value>
+  </data>
+  <data name="Col_OP_NUMBER_Desc" xml:space="preserve">
+    <value>Внутренний номер записи операции.</value>
+  </data>
+  <data name="Col_WORK_KIND_NAME" xml:space="preserve">
+    <value>Вид работ</value>
+  </data>
+  <data name="Col_WORK_KIND_NAME_Desc" xml:space="preserve">
+    <value>Категория работы (из справочника WORK_TYPES).</value>
+  </data>
+  <data name="Col_OPER_NAME" xml:space="preserve">
+    <value>Операция</value>
+  </data>
+  <data name="Col_OPER_NAME_Desc" xml:space="preserve">
+    <value>Название операции (USER_OPER_ID имеет приоритет, иначе OPER_ID — из справочника OPER_TYPES).</value>
+  </data>
+  <data name="Col_SUB_OPER_NAME" xml:space="preserve">
+    <value>Подоперация</value>
+  </data>
+  <data name="Col_SUB_OPER_NAME_Desc" xml:space="preserve">
+    <value>Уточняющая операция (из справочника SUBOPER_TYPES).</value>
+  </data>
+  <data name="Col_OP_START" xml:space="preserve">
+    <value>Начало</value>
+  </data>
+  <data name="Col_OP_START_Desc" xml:space="preserve">
+    <value>Время начала операции.</value>
+  </data>
+  <data name="Col_OP_STOP" xml:space="preserve">
+    <value>Окончание</value>
+  </data>
+  <data name="Col_OP_STOP_Desc" xml:space="preserve">
+    <value>Время окончания операции.</value>
+  </data>
+  <data name="Col_OP_DURATION_HOURS" xml:space="preserve">
+    <value>Длительность</value>
+  </data>
+  <data name="Col_OP_DURATION_HOURS_Desc" xml:space="preserve">
+    <value>Длительность операции в часах.</value>
+  </data>
+  <data name="Col_OP_COMMENT" xml:space="preserve">
+    <value>Комментарий</value>
+  </data>
+  <data name="Col_OP_COMMENT_Desc" xml:space="preserve">
+    <value>Комментарий к операции.</value>
+  </data>
+</root>

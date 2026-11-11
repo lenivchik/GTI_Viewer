@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:FirebirdViewer.ViewModels"
         xmlns:m="clr-namespace:FirebirdViewer.Models"
+        xmlns:l="clr-namespace:FirebirdViewer.Localization"
         xmlns:sp="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -22,11 +23,11 @@
 
         <!-- ===================== Top menu ===================== -->
         <Menu DockPanel.Dock="Top" Background="{StaticResource PanelBackground}">
-            <MenuItem Header="_Файл">
-                <MenuItem Header="_Подключиться к базе..."  Click="ConnectMenu_Click"/>
-                <MenuItem Header="_Отключиться"             Command="{Binding DisconnectCommand}"/>
+            <MenuItem Header="{l:Tr Menu_File}">
+                <MenuItem Header="{l:Tr Menu_Connect}"  Click="ConnectMenu_Click"/>
+                <MenuItem Header="{l:Tr Menu_Disconnect}"             Command="{Binding DisconnectCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Недавние подключения" ItemsSource="{Binding RecentConnections}">
+                <MenuItem Header="{l:Tr Menu_Recent}" ItemsSource="{Binding RecentConnections}">
                     <MenuItem.ItemContainerStyle>
                         <Style TargetType="MenuItem">
                             <Setter Property="Header" Value="{Binding Display}"/>
@@ -35,32 +36,44 @@
                         </Style>
                     </MenuItem.ItemContainerStyle>
                 </MenuItem>
-                <MenuItem Header="_Очистить список"  Command="{Binding ClearRecentCommand}"/>
+                <MenuItem Header="{l:Tr Menu_ClearRecent}"  Command="{Binding ClearRecentCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Сохранить таблицу в CSV..."     Command="{Binding ExportDataCommand}"/>
-                <MenuItem Header="Сохранить _операции в CSV..."    Command="{Binding ExportOperationsCommand}"/>
+                <MenuItem Header="{l:Tr Menu_ExportTable}"     Command="{Binding ExportDataCommand}"/>
+                <MenuItem Header="{l:Tr Menu_ExportOperations}"    Command="{Binding ExportOperationsCommand}"/>
                 <Separator/>
-                <MenuItem Header="В_ыход" Click="ExitMenu_Click"/>
+                <MenuItem Header="{l:Tr Menu_Exit}" Click="ExitMenu_Click"/>
             </MenuItem>
 
-            <MenuItem Header="_Правка">
-                <MenuItem Header="_Копировать выделенное" Command="ApplicationCommands.Copy"/>
+            <MenuItem Header="{l:Tr Menu_Edit}">
+                <MenuItem Header="{l:Tr Menu_Copy}" Command="ApplicationCommands.Copy"/>
             </MenuItem>
 
-            <MenuItem Header="_Показать">
-                <MenuItem Header="Показать _все колонки"       Command="{Binding ToggleAllColumnsCommand}"/>
+            <MenuItem Header="{l:Tr Menu_View}">
+                <MenuItem Header="{l:Tr Menu_ShowAllColumns}"       Command="{Binding ToggleAllColumnsCommand}"/>
                 <Separator/>
-                <MenuItem Header="Переместить колонку в_верх"  Command="{Binding MoveColumnUpCommand}"/>
-                <MenuItem Header="Переместить колонку в_низ"   Command="{Binding MoveColumnDownCommand}"/>
+                <MenuItem Header="{l:Tr Menu_MoveColumnUp}"  Command="{Binding MoveColumnUpCommand}"/>
+                <MenuItem Header="{l:Tr Menu_MoveColumnDown}"   Command="{Binding MoveColumnDownCommand}"/>
                 <Separator/>
-                <MenuItem Header="_Обновить данные"  Command="{Binding RefreshCommand}" InputGestureText="F5"/>
-                <MenuItem Header="_Реальное время" IsCheckable="True" InputGestureText="F9"
+                <MenuItem Header="{l:Tr Menu_Refresh}"  Command="{Binding RefreshCommand}" InputGestureText="F5"/>
+                <MenuItem Header="{l:Tr Menu_Live}" IsCheckable="True" InputGestureText="F9"
                           IsChecked="{Binding IsLiveMode, Mode=TwoWay}"
-                          ToolTip="Автоматически подтягивать новые записи из базы"/>
+                          ToolTip="{l:Tr Menu_Live_Tip}"/>
             </MenuItem>
 
-            <MenuItem Header="_Справка">
-                <MenuItem Header="_О программе" Click="About_Click"/>
+            <!-- Language names are shown in their own script, so they stay readable whatever is selected. -->
+            <MenuItem Header="{l:Tr Menu_Language}" ItemsSource="{Binding Languages}">
+                <MenuItem.ItemContainerStyle>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="Header" Value="{Binding NativeName}"/>
+                        <Setter Property="IsChecked" Value="{Binding IsSelected, Mode=OneWay}"/>
+                        <Setter Property="Command" Value="{Binding DataContext.SelectLanguageCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                        <Setter Property="CommandParameter" Value="{Binding Code}"/>
+                    </Style>
+                </MenuItem.ItemContainerStyle>
+            </MenuItem>
+
+            <MenuItem Header="{l:Tr Menu_Help}">
+                <MenuItem Header="{l:Tr Menu_About}" Click="About_Click"/>
             </MenuItem>
         </Menu>
 
@@ -114,32 +127,32 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,6,0"
                              Style="{StaticResource LiveIndicator}"/>
-                    <CheckBox Content="Реальное время" VerticalAlignment="Center" Margin="0,0,6,0"
+                    <CheckBox Content="{l:Tr Live_Toggle}" VerticalAlignment="Center" Margin="0,0,6,0"
                               IsChecked="{Binding IsLiveMode, Mode=TwoWay}"
                               IsEnabled="{Binding IsConnected}"
-                              ToolTip="Автоматически подтягивать новые записи по мере их появления в базе (F9)"/>
-                    <ComboBox Width="76" VerticalAlignment="Center" Margin="0,0,16,0"
+                              ToolTip="{l:Tr Live_Toggle_Tip}"/>
+                    <ComboBox MinWidth="76" VerticalAlignment="Center" Margin="0,0,16,0"
                               ItemsSource="{Binding Source={x:Static vm:MainViewModel.LiveIntervalOptions}}"
                               DisplayMemberPath="Label"
                               SelectedValuePath="Seconds"
                               SelectedValue="{Binding LiveIntervalSeconds, Mode=TwoWay}"
                               IsEnabled="{Binding IsLiveMode}"
-                              ToolTip="Как часто опрашивать базу"/>
+                              ToolTip="{l:Tr Live_Interval_Tip}"/>
 
-                    <TextBlock Text="Показывать записей:" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{l:Tr RowLimit_Label}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding RowLimit, UpdateSourceTrigger=LostFocus}" Width="70"
-                             ToolTip="Максимальное число строк, загружаемых из базы"/>
-                    <Button Content="Обновить" Margin="8,0,0,0" Command="{Binding RefreshCommand}"
-                            ToolTip="Перечитать данные текущей скважины и рейса (F5)"/>
+                             ToolTip="{l:Tr RowLimit_Tip}"/>
+                    <Button Content="{l:Tr Refresh_Button}" Margin="8,0,0,0" Command="{Binding RefreshCommand}"
+                            ToolTip="{l:Tr Refresh_Tip}"/>
                 </StackPanel>
                 <!-- Left: well + race pickers -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Скважина:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock Text="{l:Tr Well_Label}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <ComboBox Width="280"
                               ItemsSource="{Binding Wells}"
                               SelectedItem="{Binding SelectedWell, Mode=TwoWay}"
                               IsEnabled="{Binding IsConnected}"
-                              ToolTip="Выберите скважину для просмотра">
+                              ToolTip="{l:Tr Well_Tip}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Display}"/>
@@ -147,12 +160,12 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <TextBlock Text="Рейс:" VerticalAlignment="Center" Margin="14,0,6,0"/>
+                    <TextBlock Text="{l:Tr Race_Label}" VerticalAlignment="Center" Margin="14,0,6,0"/>
                     <ComboBox Width="260"
                               ItemsSource="{Binding Races}"
                               SelectedItem="{Binding SelectedRace, Mode=TwoWay}"
                               IsEnabled="{Binding IsConnected}"
-                              ToolTip="Ограничьте просмотр одним рейсом или выберите «Все рейсы»">
+                              ToolTip="{l:Tr Race_Tip}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Display}"/>
@@ -167,29 +180,29 @@
         <TabControl Margin="6" SelectedIndex="1">
 
                 <!-- ===== Графики ===== -->
-                <TabItem Header="Графики">
+                <TabItem Header="{l:Tr Tab_Charts}">
                     <DockPanel>
                         <!-- Global toolbar: + Добавить график, общая ориентация -->
                         <Border DockPanel.Dock="Top" Padding="6"
                                 Background="{StaticResource PanelBackground}"
                                 BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,0,0,1">
                             <StackPanel Orientation="Horizontal">
-                                <Button Content="+ Добавить график"
+                                <Button Content="{l:Tr Chart_Add}"
                                         Command="{Binding AddChartCommand}"
                                         Padding="10,3"
-                                        ToolTip="Создать ещё одну панель графика"/>
+                                        ToolTip="{l:Tr Chart_Add_Tip}"/>
 
-                                <TextBlock Text="Ориентация:" VerticalAlignment="Center" Margin="20,0,6,0"/>
-                                <RadioButton Content="Горизонтальная"
+                                <TextBlock Text="{l:Tr Chart_Orientation}" VerticalAlignment="Center" Margin="20,0,6,0"/>
+                                <RadioButton Content="{l:Tr Chart_Horizontal}"
                                              GroupName="GlobalOrientation" Margin="0,0,8,0"
                                              VerticalAlignment="Center"
                                              IsChecked="{Binding GlobalOrientationIsHorizontal, Mode=TwoWay}"
-                                             ToolTip="Графики располагаются друг под другом"/>
-                                <RadioButton Content="Вертикальная"
+                                             ToolTip="{l:Tr Chart_Horizontal_Tip}"/>
+                                <RadioButton Content="{l:Tr Chart_Vertical}"
                                              GroupName="GlobalOrientation"
                                              VerticalAlignment="Center"
                                              IsChecked="{Binding GlobalOrientationIsVertical, Mode=TwoWay}"
-                                             ToolTip="Графики располагаются слева направо; новые добавляются справа"/>
+                                             ToolTip="{l:Tr Chart_Vertical_Tip}"/>
                             </StackPanel>
                         </Border>
 
@@ -270,26 +283,26 @@
                                                     <DockPanel>
                                                         <Button DockPanel.Dock="Right" Content="✕"
                                                                 Width="24" Height="22"
-                                                                ToolTip="Удалить этот график"
+                                                                ToolTip="{l:Tr Chart_Remove_Tip}"
                                                                 Command="{Binding DataContext.RemoveChartCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"/>
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
                                                                      Width="160" VerticalAlignment="Center"
-                                                                     ToolTip="Название графика"/>
+                                                                     ToolTip="{l:Tr Chart_Title_Tip}"/>
 
-                                                            <TextBlock Text="Ось X:" VerticalAlignment="Center" Margin="16,0,6,0"/>
-                                                            <RadioButton Content="Время" Margin="0,0,8,0"
+                                                            <TextBlock Text="{l:Tr Chart_XAxis}" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                                                            <RadioButton Content="{l:Tr Chart_Time}" Margin="0,0,8,0"
                                                                          IsChecked="{Binding XAxisIsTime, Mode=TwoWay}"/>
-                                                            <RadioButton Content="Глубина забоя"
+                                                            <RadioButton Content="{l:Tr Chart_Depth}"
                                                                          IsChecked="{Binding XAxisIsDepth, Mode=TwoWay}"/>
 
                                                             <!-- Parameters: popup instead of a permanent left column -->
                                                             <ToggleButton x:Name="ParamsButton"
-                                                                          Content="Параметры ▾" Padding="8,3"
+                                                                          Content="{l:Tr Chart_Params}" Padding="8,3"
                                                                           Margin="16,0,0,0"
                                                                           VerticalAlignment="Center"
-                                                                          ToolTip="Выбрать параметры для построения"/>
+                                                                          ToolTip="{l:Tr Chart_Params_Tip}"/>
                                                             <Popup IsOpen="{Binding IsChecked, ElementName=ParamsButton, Mode=TwoWay}"
                                                                    PlacementTarget="{Binding ElementName=ParamsButton}"
                                                                    Placement="Bottom"
@@ -321,28 +334,28 @@
                                                                 </Border>
                                                             </Popup>
 
-                                                            <CheckBox Content="Своя шкала для каждой кривой"
+                                                            <CheckBox Content="{l:Tr Chart_SeparateScales}"
                                                                       VerticalAlignment="Center" Margin="16,0,0,0"
                                                                       IsChecked="{Binding SeparateScales, Mode=TwoWay}"
-                                                                      ToolTip="Каждая кривая получает свою ось значений (для разных диапазонов)"/>
+                                                                      ToolTip="{l:Tr Chart_SeparateScales_Tip}"/>
 
                                                             <!-- Explicit scale controls: the wheel alone was ambiguous
                                                                  (zoom vs. scrolling the page). -->
-                                                            <TextBlock Text="Масштаб:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                                                            <TextBlock Text="{l:Tr Chart_Zoom}" VerticalAlignment="Center" Margin="16,0,6,0"/>
                                                             <Button Content="−" Width="26" Padding="0,1"
                                                                     Command="{Binding ZoomOutCommand}"
-                                                                    ToolTip="Уменьшить масштаб (показать больший интервал)"/>
+                                                                    ToolTip="{l:Tr Chart_ZoomOut_Tip}"/>
                                                             <Button Content="+" Width="26" Padding="0,1" Margin="3,0,0,0"
                                                                     Command="{Binding ZoomInCommand}"
-                                                                    ToolTip="Увеличить масштаб (показать меньший интервал)"/>
-                                                            <Button Content="Весь диапазон" Padding="6,1" Margin="3,0,0,0"
+                                                                    ToolTip="{l:Tr Chart_ZoomIn_Tip}"/>
+                                                            <Button Content="{l:Tr Chart_ZoomReset}" Padding="6,1" Margin="3,0,0,0"
                                                                     Command="{Binding ZoomResetCommand}"
-                                                                    ToolTip="Показать все данные"/>
+                                                                    ToolTip="{l:Tr Chart_ZoomReset_Tip}"/>
 
                                                             <TextBlock Text="{Binding CursorText}"
                                                                        VerticalAlignment="Center" Margin="14,0,0,0"
                                                                        Foreground="{StaticResource MutedForeground}"
-                                                                       ToolTip="Положение курсора по оси времени / глубины"/>
+                                                                       ToolTip="{l:Tr Chart_Cursor_Tip}"/>
                                                         </StackPanel>
                                                     </DockPanel>
                                                 </Border>
@@ -353,7 +366,7 @@
                                                         BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
                                                         Visibility="{Binding HasSelectionStats, Converter={StaticResource BoolToVisibility}}">
                                                     <DockPanel>
-                                                        <Button DockPanel.Dock="Right" Content="Очистить"
+                                                        <Button DockPanel.Dock="Right" Content="{l:Tr Selection_Clear}"
                                                                 Padding="8,2" VerticalAlignment="Top"
                                                                 Command="{Binding ClearSelectionCommand}"/>
                                                         <StackPanel>
@@ -366,13 +379,13 @@
                                                                             <Border Width="12" Height="12" Margin="0,0,6,0"
                                                                                     Background="{Binding Swatch}"/>
                                                                             <TextBlock Text="{Binding Name}" Width="220" TextTrimming="CharacterEllipsis"/>
-                                                                            <TextBlock Text="сред: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{l:Tr Stat_Avg}" Foreground="{StaticResource MutedForeground}"/>
                                                                             <TextBlock Text="{Binding AvgText}" Width="70" FontWeight="SemiBold"/>
-                                                                            <TextBlock Text="мин: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{l:Tr Stat_Min}" Foreground="{StaticResource MutedForeground}"/>
                                                                             <TextBlock Text="{Binding MinText}" Width="70"/>
-                                                                            <TextBlock Text="макс: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{l:Tr Stat_Max}" Foreground="{StaticResource MutedForeground}"/>
                                                                             <TextBlock Text="{Binding MaxText}" Width="70"/>
-                                                                            <TextBlock Text="точек: " Foreground="{StaticResource MutedForeground}"/>
+                                                                            <TextBlock Text="{l:Tr Stat_Count}" Foreground="{StaticResource MutedForeground}"/>
                                                                             <TextBlock Text="{Binding Count}"/>
                                                                         </StackPanel>
                                                                     </DataTemplate>
@@ -401,7 +414,7 @@
                                                                                   Background="Transparent"
                                                                                   BorderThickness="0"
                                                                                   Cursor="Hand"
-                                                                                  ToolTip="Нажмите, чтобы настроить вид кривой">
+                                                                                  ToolTip="{l:Tr Legend_Tip}">
                                                                         <StackPanel Orientation="Horizontal">
                                                                             <!-- Line sample: colour + dash pattern + thickness -->
                                                                             <Line X1="0" Y1="6" X2="26" Y2="6"
@@ -425,7 +438,7 @@
                                                                                 <TextBlock Text="{Binding DisplayName}"
                                                                                            FontWeight="SemiBold" Margin="0,0,0,6"/>
 
-                                                                                <TextBlock Text="Цвет" Margin="0,0,0,3"
+                                                                                <TextBlock Text="{l:Tr Legend_Color}" Margin="0,0,0,3"
                                                                                            Foreground="{StaticResource MutedForeground}"/>
                                                                                 <ListBox ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.ColorOptions}}"
                                                                                          SelectedItem="{Binding Color, Mode=TwoWay}"
@@ -450,7 +463,7 @@
                                                                                     </ListBox.ItemTemplate>
                                                                                 </ListBox>
 
-                                                                                <TextBlock Text="Тип линии" Margin="0,8,0,3"
+                                                                                <TextBlock Text="{l:Tr Legend_LineType}" Margin="0,8,0,3"
                                                                                            Foreground="{StaticResource MutedForeground}"/>
                                                                                 <ComboBox Width="288"
                                                                                           ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.LineTypeOptions}}"
@@ -458,7 +471,7 @@
                                                                                           SelectedValuePath="Value"
                                                                                           SelectedValue="{Binding LineType, Mode=TwoWay}"/>
 
-                                                                                <TextBlock Text="Толщина линии" Margin="0,8,0,3"
+                                                                                <TextBlock Text="{l:Tr Legend_LineWidth}" Margin="0,8,0,3"
                                                                                            Foreground="{StaticResource MutedForeground}"/>
                                                                                 <ComboBox Width="288"
                                                                                           ItemsSource="{Binding Source={x:Static vm:ChartParameterRef.LineWidthOptions}}"
@@ -475,7 +488,7 @@
                                                 <!-- Chart -->
                                                 <sp:WpfPlot Loaded="ChartPlot_Loaded"
                                                             Unloaded="ChartPlot_Unloaded"
-                                                            ToolTip="Ctrl + колесо — масштаб; колесо — прокрутка страницы;&#x0a;двойной клик по точке — значение;&#x0a;Shift + протяните мышью — среднее / мин / макс по участку"/>
+                                                            ToolTip="{l:Tr Chart_Plot_Tip}"/>
                                             </DockPanel>
                                         </Border>
                                     </DataTemplate>
@@ -486,7 +499,7 @@
                 </TabItem>
 
                 <!-- ===== Таблица ===== -->
-                <TabItem Header="Таблица">
+                <TabItem Header="{l:Tr Tab_Table}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="240" MinWidth="180"/>
@@ -497,7 +510,7 @@
                         <!-- ============== Left: "Показывать колонки" panel ============== -->
                         <DockPanel Grid.Column="0" Background="White">
                             <Border DockPanel.Dock="Top" Style="{StaticResource SectionHeader}">
-                                <TextBlock Text="Показывать колонки" Style="{StaticResource SectionHeaderText}"/>
+                                <TextBlock Text="{l:Tr Columns_Header}" Style="{StaticResource SectionHeaderText}"/>
                             </Border>
 
                             <!-- Bottom: Up/Down/All controls -->
@@ -505,14 +518,14 @@
                                     BorderBrush="{StaticResource PanelBorder}" BorderThickness="0,1,0,0"
                                     Background="{StaticResource PanelBackground}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="Вверх" Command="{Binding MoveColumnUpCommand}"   Width="60" Margin="0,0,4,0"
-                                            ToolTip="Переместить выбранную колонку вверх"/>
-                                    <Button Content="Вниз"  Command="{Binding MoveColumnDownCommand}" Width="60" Margin="0,0,8,0"
-                                            ToolTip="Переместить выбранную колонку вниз"/>
-                                    <CheckBox Content="Все"
+                                    <Button Content="{l:Tr Columns_Up}" Command="{Binding MoveColumnUpCommand}"   MinWidth="60" Padding="6,1" Margin="0,0,4,0"
+                                            ToolTip="{l:Tr Columns_Up_Tip}"/>
+                                    <Button Content="{l:Tr Columns_Down}"  Command="{Binding MoveColumnDownCommand}" MinWidth="60" Padding="6,1" Margin="0,0,8,0"
+                                            ToolTip="{l:Tr Columns_Down_Tip}"/>
+                                    <CheckBox Content="{l:Tr Columns_All}"
                                               IsChecked="{Binding AllColumnsVisible, Mode=TwoWay}"
                                               VerticalAlignment="Center"
-                                              ToolTip="Показать или скрыть сразу все колонки"/>
+                                              ToolTip="{l:Tr Columns_All_Tip}"/>
                                 </StackPanel>
                             </Border>
 
@@ -557,7 +570,7 @@
                 </TabItem>
 
                 <!-- ===== Инструменты ===== -->
-                <TabItem Header="Инструменты">
+                <TabItem Header="{l:Tr Tab_Tools}">
                     <DataGrid x:Name="ToolsGrid"
                               ItemsSource="{Binding ToolsData}"
                               AutoGeneratingColumn="ToolsGrid_AutoGeneratingColumn"
@@ -571,7 +584,7 @@
                 </TabItem>
 
                 <!-- ===== Операции ===== -->
-                <TabItem Header="Операции">
+                <TabItem Header="{l:Tr Tab_Operations}">
                     <DataGrid x:Name="OperationsGrid"
                               ItemsSource="{Binding OperationsData}"
                               AutoGeneratingColumn="OperationsGrid_AutoGeneratingColumn"

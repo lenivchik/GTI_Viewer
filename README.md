@@ -72,8 +72,15 @@ FirebirdViewer.sln
     │   └── AsyncRelayCommand.cs
     ├── Converters/
     │   └── BoolToVisibilityConverter.cs  + InverseBooleanConverter
+    ├── Localization/
+    │   ├── Loc.cs                        current language, string lookup, switch event
+    │   ├── TrExtension.cs                {l:Tr Key} — translated text in XAML
+    │   └── LocalizedText.cs              status messages that re-render on a switch
     └── Resources/
-        └── Styles.xaml                   shared brushes, control styles
+        ├── Styles.xaml                   shared brushes, control styles
+        ├── Strings.resx                  interface text, Russian (neutral)
+        ├── Strings.kk.resx               Kazakh (Cyrillic)
+        └── Strings.uz-Latn.resx          Uzbek (Latin)
 ```
 
 ## Prerequisites
@@ -142,6 +149,32 @@ the new rows and nothing more.
   failures in a row real-time mode switches itself off and says why once.
 - The state of the checkbox and the interval are saved, so the app comes back in
   the mode you left it in.
+
+## Язык интерфейса (Interface language)
+
+The **Язык / Тіл / Til** menu switches between Русский, Қазақша (Kazakh, Cyrillic)
+and Oʻzbekcha (Uzbek, Latin). The switch is instant — menus, labels, column
+headers, curve names and status texts change in the open window, charts keep
+their zoom — and the choice is saved in `settings.json`. Until a language is
+picked, the Windows display language decides (Kazakh or Uzbek if Windows uses
+it, Russian otherwise).
+
+- Interface text lives in `Resources/Strings*.resx`. A key missing from a
+  translation falls back to Russian, so a partly translated build still runs.
+  Placeholders `{0}`, `{1}` must survive translation; `_` in menu captions marks
+  the Alt access key.
+- **Parameter names.** In Russian the column and curve names are `PARAMS.FULL_NAME`
+  exactly as stored in the database. In Kazakh and Uzbek they are looked up by
+  `PARAMS.TABLE_FIELD` (`Param_woh`, `Param_mud_pressure` …; numbered families such
+  as `volume1…16` share `Param_volume_N` with `{0}` = the number). The tooltip still
+  shows the database's Russian name. A parameter without a translation keeps its
+  Russian name. Units are translated through `Unit_*` keys (the comment next to each
+  shows the Russian unit).
+- What is **not** translated: values stored in the database — well and cluster
+  names, operation and tool type names, comments — and error messages that come
+  from the Firebird client itself.
+- To add a language: copy `Strings.kk.resx` to `Strings.<culture>.resx`, translate
+  the values, and add a line to `Loc.Languages`.
 
 ## Features
 

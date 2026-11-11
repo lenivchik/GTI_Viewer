@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using FirebirdViewer.Localization;
 using FirebirdViewer.Metadata;
 using FirebirdViewer.Models;
 using FirebirdViewer.Services;
@@ -25,8 +26,10 @@ public partial class MainWindow : Window
 
         _vm.ColumnOrderChanged += (_, _) => SyncColumnOrder();
         _vm.ConnectRequested   += async (_, settings) => await OpenConnectDialogAsync(settings);
+        Loc.LanguageChanged    += OnLanguageChanged;
         Closed += (_, _) =>
         {
+            Loc.LanguageChanged -= OnLanguageChanged;
             _vm.SaveSettings();
             _vm.Shutdown();      // stop real-time polling before the app tears down
         };
@@ -57,10 +60,8 @@ public partial class MainWindow : Window
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
         MessageBox.Show(this,
-            $"Просмотр данных ГТИ\nВерсия {version}\n\n" +
-            "Программа для удобного просмотра данных ГТИ из базы Firebird.\n" +
-            "Названия параметров взяты из системы GtiRealtimeCharts.",
-            "О программе",
+            Loc.F("About_Text", version),
+            Loc.T("About_Title"),
             MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
@@ -136,7 +137,7 @@ public partial class MainWindow : Window
             // Defensive — DataRowView indexers can throw on detached rows; ignore.
         }
 
-        _vm.CursorText = $"Запись {rowIndex} · {headerText}: {value}";
+        _vm.CursorText = Loc.F("Cursor_Record", rowIndex, headerText, value);
     }
 
     // ============================================================
@@ -155,6 +156,31 @@ public partial class MainWindow : Window
         // The TOOLS_VIEW context maps the aliased columns produced by GetToolsAsync.
         e.Column.Header = FriendlyNames.GetColumnDisplay("TOOLS_VIEW", e.PropertyName);
         ApplyTwoDecimalFormat(e.Column, e.PropertyType);
+    }
+
+    // ============================================================
+    // Interface language
+    // ============================================================
+
+    /// <summary>
+    /// Grid headers are assigned once, when a column is generated, so they would keep the old
+    /// language. Re-resolve them by the raw column name that SortMemberPath still holds.
+    /// Everything else on screen either binds to <see cref="Loc"/> or is rebuilt by the VM.
+    /// </summary>
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        RelabelColumns(DataGrid,       raw => FriendlyNames.GetColumnDisplay(null, raw));
+        RelabelColumns(OperationsGrid, raw => FriendlyNames.GetColumnDisplay("OPERATIONS_VIEW", raw));
+        RelabelColumns(ToolsGrid,      raw => FriendlyNames.GetColumnDisplay("TOOLS_VIEW", raw));
+    }
+
+    private static void RelabelColumns(DataGrid grid, Func<string, string> label)
+    {
+        foreach (var col in grid.Columns)
+        {
+            if (!string.IsNullOrEmpty(col.SortMemberPath))
+                col.Header = label(col.SortMemberPath);
+        }
     }
 
     // ============================================================

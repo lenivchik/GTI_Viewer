@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using FirebirdViewer.Localization;
 using FirebirdViewer.Models;
 
 namespace FirebirdViewer.Views;
@@ -27,19 +28,19 @@ public partial class ConnectionDialog : Window
     {
         if (string.IsNullOrWhiteSpace(Settings.Server))
         {
-            MessageBox.Show(this, "Укажите адрес сервера.", "Подключение",
+            MessageBox.Show(this, Loc.T("Conn_NeedServer"), Loc.T("Conn_Caption"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (string.IsNullOrWhiteSpace(Settings.Database))
         {
-            MessageBox.Show(this, "Укажите путь к базе данных.", "Подключение",
+            MessageBox.Show(this, Loc.T("Conn_NeedDatabase"), Loc.T("Conn_Caption"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (string.IsNullOrWhiteSpace(Settings.UserName))
         {
-            MessageBox.Show(this, "Укажите имя пользователя.", "Подключение",
+            MessageBox.Show(this, Loc.T("Conn_NeedUser"), Loc.T("Conn_Caption"),
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

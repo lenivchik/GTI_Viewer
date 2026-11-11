@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:l="clr-namespace:FirebirdViewer.Localization">
 
     <!-- ===== Color palette ===== -->
     <SolidColorBrush x:Key="PanelBackground" Color="#F4F4F6"/>
@@ -92,11 +93,11 @@
          doing rather than what the checkbox says. -->
     <Style x:Key="LiveIndicator" TargetType="Ellipse">
         <Setter Property="Fill" Value="#C4C4CC"/>
-        <Setter Property="ToolTip" Value="Реальное время выключено"/>
+        <Setter Property="ToolTip" Value="{l:Tr Live_Off_Tip}"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsLiveRunning}" Value="True">
                 <Setter Property="Fill" Value="#3CB371"/>
-                <Setter Property="ToolTip" Value="Реальное время включено"/>
+                <Setter Property="ToolTip" Value="{l:Tr Live_On_Tip}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
